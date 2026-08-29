@@ -61,7 +61,8 @@
     "publish": {
       "provider": "github",
       "owner": "KaiLeroy",
-      "repo": "starforged-gm"
+      "repo": "starforged-gm",
+      "releaseType": "release"
     }
   }
 }
