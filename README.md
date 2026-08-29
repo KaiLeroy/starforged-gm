@@ -124,34 +124,54 @@ Linux/macOS cross-compilation requirement.
 ### Publishing releases for auto-update
 
 The app checks for updates against GitHub Releases (see "Auto-update"
-above) -- this needs a small amount of one-time setup before it does
-anything, and won't silently do the wrong thing if skipped: an unconfigured
-build just reports "not configured" in Settings, not a broken check.
+above) -- an unconfigured build reports "not configured" in Settings
+rather than silently doing the wrong thing, but getting it actually
+working takes a small amount of one-time setup.
 
+Publishing itself happens on GitHub's own infrastructure via
+`.github/workflows/release.yml`, not locally -- `npm run dist:win:publish`
+still works if run somewhere with unrestricted network access, but isn't
+the intended path. This exists specifically because publishing a release
+requires uploading to `uploads.github.com`, a different host from the rest
+of GitHub's API, and some environments (this one included) block it while
+allowing everything else -- a hard, silent-looking failure otherwise. A
+real Windows GitHub Actions runner has no such restriction, and also means
+the installer builds natively rather than needing Wine for cross-compiling
+from Linux.
+
+One-time setup:
 1. Create a GitHub repo for this project (public -- electron-updater's
-   GitHub provider reads release metadata without authentication, only
-   *publishing* a release needs a token).
+   GitHub provider reads release metadata without authentication).
 2. In `package.json`, replace `build.publish.owner` and `build.publish.repo`
    with your actual GitHub username and repo name.
-3. Generate a [personal access token](https://github.com/settings/tokens)
-   with the `repo` scope, and set it as an environment variable before
-   publishing:
+3. Push the repo, including `.github/workflows/release.yml`. No extra
+   secrets to configure -- the workflow uses GitHub's own automatic,
+   per-run `GITHUB_TOKEN`, already scoped to just this repo.
+
+To publish a new release from then on:
+1. Bump `package.json`'s own `version` field -- electron-updater compares
+   against this, not a build number.
+2. Push a tag matching that version, prefixed with `v` (e.g. `v0.1.2` for
+   version `0.1.2`):
    ```
-   export GH_TOKEN=ghp_your_token_here
+   git tag v0.1.2 && git push origin v0.1.2
    ```
-4. Bump `package.json`'s own `version` field for the new release --
-   electron-updater compares against this, not a build number.
-5. Build and publish in one step:
-   ```
-   npm run dist:win:publish
-   ```
-   This uploads the NSIS installer AND the `latest.yml` metadata file
-   electron-updater actually reads -- publishing the installer alone,
-   without that file, leaves auto-update with nothing to check against.
+   That tag push is the trigger -- GitHub Actions picks it up, builds on a
+   Windows runner, and publishes the installer plus the `latest.yml`
+   metadata file electron-updater actually reads (publishing the installer
+   alone, without that file, leaves auto-update with nothing to check
+   against). `build.publish.releaseType: "release"` in package.json makes
+   this a real, published release directly -- electron-builder's own
+   default is to leave it as an unpublished draft, invisible to anything
+   checking the latest-release endpoint, which needs this setting to avoid.
 
 After that, any already-installed copy of the app will see the new version
 next time it checks (manually, from Settings) -- there's no separate step
-needed on the client side once a repo is configured once.
+needed on the client side once a repo is configured once. Verified working
+end to end against a real tagged release, not just built and assumed
+correct: the same URL electron-updater itself would fetch
+(`https://github.com/<owner>/<repo>/releases/latest/download/latest.yml`)
+was confirmed to return the real, correct version and file hash.
 
 ## Current scope / what's next
 
@@ -1289,6 +1309,53 @@ wasn't.
 2 new tests covering every distinct case caught during verification,
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
+
+## Auto-update actually publishing now, end to end -- moved to GitHub Actions after a real mistake and a real network wall
+
+Following up on the auto-update feature: the actual publish step is
+now verified working, for real, against a real tagged release -- not
+just built and assumed correct.
+
+**A real mistake happened getting here, worth being direct about.**
+The first attempt ran the full local build-and-publish command --
+roughly 260 seconds -- and only hit a failure at the very last step:
+`uploads.github.com`, the specific host GitHub requires for release
+asset uploads (architecturally separate from the rest of its API), is
+blocked by this environment's network egress policy. That specific
+risk had already been flagged as uncertain beforehand, and should
+have been tested directly and cheaply before running the expensive
+part, not discovered at the end of it. The broken draft release this
+left behind was found and deleted before moving on.
+
+**The real fix: build and publish on GitHub's own infrastructure
+instead**, not locally. Added `.github/workflows/release.yml` --
+triggered by pushing a version tag, running on a real Windows GitHub
+Actions runner (which also means no Wine cross-compilation step
+needed at all, unlike this project's own local build environment),
+authenticated with GitHub's own automatic per-run token rather than
+a personal access token.
+
+**Two more real, concrete problems surfaced getting the workflow
+itself working, both worth naming rather than glossing over.**
+GitHub separately gates writing anything under `.github/workflows/`
+behind its own dedicated permission, distinct from general repo
+write access -- the first attempt to push the workflow file was
+correctly rejected until that permission was added. And
+electron-builder's own default behavior is to publish a release as an
+unpublished draft, invisible to anything checking the latest-release
+endpoint (electron-updater included) -- confirmed directly by
+checking the release's own state after a successful build, not
+assumed complete just because the workflow reported success. Fixed by
+setting `releaseType: "release"` so future tag pushes publish
+directly, with no manual step.
+
+**Verified end to end against a real release, not just "the workflow
+finished."** Fetched the exact same URL electron-updater's own check
+would hit and confirmed it returns the real version, file, and hash
+-- the actual thing this whole feature exists to make an installed
+app able to find.
+
+Full regression, syntax, types, and playtest all clean throughout.
 
 ## Auto-update, built for real -- and a genuine electron-updater testability obstacle solved along the way
 
