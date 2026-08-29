@@ -81,21 +81,21 @@ function AssetCard({ asset, catalogEntry, campaignId, aboardVehicleId, onStateCh
   return (
     <div className="track-card" style={{ padding: '6px 10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div className="track-name" style={{ fontSize: 12 }}>
+        <div className="track-name" style={{ fontSize: 14 }}>
           {asset.name}
-          {isAboard && <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--accent-cyan)' }}>ABOARD</span>}
+          {isAboard && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--accent-cyan)' }}>ABOARD</span>}
         </div>
         {confirmingDiscard ? (
           <div style={{ display: 'flex', gap: 4 }}>
-            <button className="icon-btn" style={{ fontSize: 9, padding: '1px 6px', borderColor: 'var(--danger)', color: 'var(--danger)' }} onClick={discard}>
+            <button className="icon-btn" style={{ fontSize: 11, padding: '1px 6px', borderColor: 'var(--danger)', color: 'var(--danger)' }} onClick={discard}>
               Confirm
             </button>
-            <button className="icon-btn" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => setConfirmingDiscard(false)}>
+            <button className="icon-btn" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => setConfirmingDiscard(false)}>
               Cancel
             </button>
           </div>
         ) : (
-          <button className="icon-btn" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => setConfirmingDiscard(true)} title="Discard this asset -- destroyed, lost, or given up">
+          <button className="icon-btn" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => setConfirmingDiscard(true)} title="Discard this asset -- destroyed, lost, or given up">
             ✕
           </button>
         )}
@@ -110,7 +110,7 @@ function AssetCard({ asset, catalogEntry, campaignId, aboardVehicleId, onStateCh
               <div
                 key={abilityNumber}
                 style={{
-                  fontSize: 11,
+                  fontSize: 13,
                   lineHeight: 1.4,
                   color: unlocked ? 'var(--text)' : 'var(--text-dim)',
                   opacity: unlocked ? 1 : 0.6,
@@ -157,7 +157,7 @@ function AssetCard({ asset, catalogEntry, campaignId, aboardVehicleId, onStateCh
         <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             className="icon-btn"
-            style={{ fontSize: 9, padding: '1px 6px', borderColor: asset.battered ? 'var(--danger)' : undefined, color: asset.battered ? 'var(--danger)' : undefined }}
+            style={{ fontSize: 11, padding: '1px 6px', borderColor: asset.battered ? 'var(--danger)' : undefined, color: asset.battered ? 'var(--danger)' : undefined }}
             onClick={() => toggleCondition('battered')}
           >
             {asset.battered ? 'Battered ✓' : 'Battered'}
@@ -165,7 +165,7 @@ function AssetCard({ asset, catalogEntry, campaignId, aboardVehicleId, onStateCh
           {asset.cursed !== undefined && (
             <button
               className="icon-btn"
-              style={{ fontSize: 9, padding: '1px 6px', borderColor: asset.cursed ? 'var(--danger)' : undefined, color: asset.cursed ? 'var(--danger)' : undefined }}
+              style={{ fontSize: 11, padding: '1px 6px', borderColor: asset.cursed ? 'var(--danger)' : undefined, color: asset.cursed ? 'var(--danger)' : undefined }}
               disabled={asset.cursed}
               title={asset.cursed ? 'Cursed is permanent -- cannot be cleared' : 'Cursed is permanent once marked'}
               onClick={() => toggleCondition('cursed')}
@@ -217,7 +217,7 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
             {character.name || 'Unnamed Ironsworn'}
             {character.callsign ? ` "${character.callsign}"` : ''}
           </span>
-          <button className="icon-btn" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => setShowEditModal(true)} title="Edit name, flavor text, or fix a stat mistake">
+          <button className="icon-btn" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => setShowEditModal(true)} title="Edit name, flavor text, or fix a stat mistake">
             ✎
           </button>
         </p>
@@ -225,8 +225,8 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
           <GeneratedImage imageId={character.portraitImageId} alt={character.name} style={{ width: '100%', height: 'auto', marginBottom: 8 }} />
         )}
         <PortraitGenerateButton state={state} campaignId={campaignId} onStateChange={onStateChange} />
-        {character.pronouns && <p style={{ fontSize: 11, color: 'var(--text-dim)', margin: '0 0 4px' }}>{character.pronouns}</p>}
-        {character.description && <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '0 0 8px', fontStyle: 'italic' }}>{character.description}</p>}
+        {character.pronouns && <p style={{ fontSize: 13, color: 'var(--text-dim)', margin: '0 0 4px' }}>{character.pronouns}</p>}
+        {character.description && <p style={{ fontSize: 14, color: 'var(--text-dim)', margin: '0 0 8px', fontStyle: 'italic' }}>{character.description}</p>}
         {showEditModal && <EditCharacterModal character={character} campaignId={campaignId} onStateChange={onStateChange} onClose={() => setShowEditModal(false)} />}
         <div className="stat-grid">
           {stats.map(([key, label]) => (
@@ -248,17 +248,17 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
       <div>
         <p className="panel-title">Vehicle Integrity</p>
         {meterRow('Integrity', 'integrity', character.meters.integrity)}
-        <p style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
           Which vehicle counts toward momentum, and its Battered/Cursed status, is set per-vehicle in the Assets list below.
         </p>
       </div>
 
       <div>
         <p className="panel-title">Combat</p>
-        <p style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -6, marginBottom: 6 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: -6, marginBottom: 6 }}>
           Set by the GM from how rolls actually go -- not something to override directly.
         </p>
-        <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
+        <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
           <div style={{ flex: 1 }}>
             <div style={{ color: 'var(--text-dim)', marginBottom: 3 }}>Position</div>
             <div style={{ padding: '4px 6px', borderRadius: 4, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
@@ -278,14 +278,14 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
         <p className="panel-title">
           Experience ({character.experience.earned - character.experience.spent} available)
         </p>
-        <p style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+        <p style={{ fontSize: 13, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
           {character.experience.earned} earned · {character.experience.spent} spent
         </p>
       </div>
 
       <div>
         <p className="panel-title">Assets</p>
-        {character.assets.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>None yet.</p>}
+        {character.assets.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>None yet.</p>}
         {character.assets.map((a) => (
           <AssetCard key={a.id} asset={a} catalogEntry={assetCatalog.find((c) => c.id === a.id) || null} campaignId={campaignId} aboardVehicleId={character.aboardVehicleId} onStateChange={onStateChange} />
         ))}
@@ -305,7 +305,7 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
 
       <div>
         <p className="panel-title">Progress Tracks</p>
-        {progressTracks.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>No active vows or tracks yet.</p>}
+        {progressTracks.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>No active vows or tracks yet.</p>}
         {progressTracks.map((t) => {
           const clampedTicks = Math.min(40, Math.max(0, t.ticks));
           return (
@@ -336,7 +336,7 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
           if (category === 'Other Impacts') return null; // rendered separately below, with its own add/remove form
           return (
             <div key={category} style={{ marginBottom: 8 }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>
                 {category}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -350,7 +350,7 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
                       onStateChange(next);
                     }}
                     style={{
-                      fontSize: 11,
+                      fontSize: 13,
                       padding: '2px 7px',
                       borderRadius: 3,
                       border: `1px solid ${impact.marked ? 'var(--danger)' : 'var(--border)'}`,
@@ -368,7 +368,7 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
           );
         })}
         <OtherImpactsRow state={state} campaignId={campaignId} onStateChange={onStateChange} />
-        <p style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
           Click to toggle. Also marked automatically by the GM when the fiction calls for it. 🔒 = permanent.
         </p>
       </div>
@@ -651,7 +651,7 @@ function ConnectionsSection({ state, campaignId, onStateChange }: { state: Campa
   return (
     <div>
       <p className="panel-title">Connections</p>
-      {state.connections.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>None yet.</p>}
+      {state.connections.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>None yet.</p>}
       {state.connections.map((c) => (
         <div className="track-card" key={c.id} style={{ padding: '6px 10px' }}>
           {editingId === c.id ? (
@@ -660,25 +660,25 @@ function ConnectionsSection({ state, campaignId, onStateChange }: { state: Campa
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder="Name"
-                style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 12, marginBottom: 4 }}
+                style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 14, marginBottom: 4 }}
               />
               <input
                 value={editLocation}
                 onChange={(e) => setEditLocation(e.target.value)}
                 placeholder="Location (where they can typically be found)"
-                style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, marginBottom: 4 }}
+                style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 13, marginBottom: 4 }}
               />
               <input
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
                 placeholder="Notes"
-                style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, marginBottom: 4 }}
+                style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 13, marginBottom: 4 }}
               />
               <div style={{ display: 'flex', gap: 4 }}>
-                <button className="icon-btn" style={{ fontSize: 9, padding: '1px 6px' }} onClick={saveEdit} disabled={!editName.trim()}>
+                <button className="icon-btn" style={{ fontSize: 11, padding: '1px 6px' }} onClick={saveEdit} disabled={!editName.trim()}>
                   Save
                 </button>
-                <button className="icon-btn" style={{ fontSize: 9, padding: '1px 6px' }} onClick={() => setEditingId(null)}>
+                <button className="icon-btn" style={{ fontSize: 11, padding: '1px 6px' }} onClick={() => setEditingId(null)}>
                   Cancel
                 </button>
               </div>
@@ -688,32 +688,32 @@ function ConnectionsSection({ state, campaignId, onStateChange }: { state: Campa
               {c.imageId && <GeneratedImage imageId={c.imageId} alt={c.name} style={{ width: 40, height: 40, flexShrink: 0 }} />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 12, fontWeight: 'bold' }}>{c.name}</span>
+                  <span style={{ fontSize: 14, fontWeight: 'bold' }}>{c.name}</span>
                   <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 9 }} onClick={() => startEdit(c)} title="Edit name/location/notes">
+                    <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 11 }} onClick={() => startEdit(c)} title="Edit name/location/notes">
                       ✎
                     </button>
-                    <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 9 }} onClick={() => remove(c.id)} title="Remove connection">
+                    <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 11 }} onClick={() => remove(c.id)} title="Remove connection">
                       ✕
                     </button>
                   </div>
                 </div>
-                {c.location && <div style={{ fontSize: 11, color: 'var(--accent-cyan)' }}>{c.location}</div>}
-                {c.notes && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{c.notes}</div>}
+                {c.location && <div style={{ fontSize: 13, color: 'var(--accent-cyan)' }}>{c.location}</div>}
+                {c.notes && <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{c.notes}</div>}
                 {(c.role || c.bonded) && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                     {c.role && (
-                      <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--border)', color: 'var(--text-dim)' }}>
+                      <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--border)', color: 'var(--text-dim)' }}>
                         {c.role} (+{c.roleBonus}){c.secondRole && ` / ${c.secondRole} (+${c.roleBonus})`}
                       </span>
                     )}
                     {c.bonded && (
-                      <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--accent-copper)', color: 'var(--accent-copper)' }}>
+                      <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--accent-copper)', color: 'var(--accent-copper)' }}>
                         BOND
                       </span>
                     )}
                     {c.benefitsSuspended && (
-                      <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--danger)', color: 'var(--danger)' }}>
+                      <span style={{ fontSize: 12, padding: '1px 6px', borderRadius: 3, border: '1px solid var(--danger)', color: 'var(--danger)' }}>
                         SUSPENDED
                       </span>
                     )}
@@ -724,10 +724,10 @@ function ConnectionsSection({ state, campaignId, onStateChange }: { state: Campa
                     // Per the book: once bonded, the connection no longer has a progress track at
                     // all -- Develop Your Relationship becomes a direct action roll instead. Showing
                     // a stale box track here would misrepresent a mechanic that no longer applies.
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>{c.rank} (bonded -- no progress track)</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{c.rank} (bonded -- no progress track)</div>
                   ) : (
                     <div style={{ marginTop: 4 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 2 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 2 }}>
                         {c.rank} · {Math.floor(Math.min(40, Math.max(0, c.progressTicks)) / 4)}/10
                       </div>
                       <div className="track-boxes">
@@ -744,7 +744,7 @@ function ConnectionsSection({ state, campaignId, onStateChange }: { state: Campa
                     </div>
                   )
                 ) : (
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>No rank set yet</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>No rank set yet</div>
                 )}
               </div>
             </div>
@@ -763,7 +763,7 @@ function ConnectionsSection({ state, campaignId, onStateChange }: { state: Campa
         </div>
       ))}
       <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }} />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14 }} />
         <button className="icon-btn" onClick={add} disabled={!name.trim()}>
           Add
         </button>
@@ -772,13 +772,13 @@ function ConnectionsSection({ state, campaignId, onStateChange }: { state: Campa
         value={location}
         onChange={(e) => setLocation(e.target.value)}
         placeholder="Location (optional)"
-        style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 12, marginTop: 4 }}
+        style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14, marginTop: 4 }}
       />
       <input
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Notes (optional)"
-        style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 12, marginTop: 4 }}
+        style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14, marginTop: 4 }}
       />
     </div>
   );
@@ -804,12 +804,12 @@ function OtherImpactsRow({ state, campaignId, onStateChange }: { state: Campaign
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Other Impacts</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 3 }}>Other Impacts</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
         {others.map((impact) => (
-          <span key={impact.name} style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--danger)', color: 'var(--danger)', background: 'rgba(197, 83, 63, 0.12)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span key={impact.name} style={{ fontSize: 13, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--danger)', color: 'var(--danger)', background: 'rgba(197, 83, 63, 0.12)', display: 'flex', alignItems: 'center', gap: 4 }}>
             {impact.name}
-            <button onClick={() => remove(impact.name)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 10 }}>
+            <button onClick={() => remove(impact.name)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12 }}>
               ✕
             </button>
           </span>
@@ -821,17 +821,17 @@ function OtherImpactsRow({ state, campaignId, onStateChange }: { state: Campaign
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Oathbreaker"
-            style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 11 }}
+            style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 6px', fontSize: 13 }}
           />
-          <button className="icon-btn" style={{ fontSize: 10 }} onClick={add} disabled={!name.trim()}>
+          <button className="icon-btn" style={{ fontSize: 12 }} onClick={add} disabled={!name.trim()}>
             Add
           </button>
-          <button className="icon-btn" style={{ fontSize: 10 }} onClick={() => setAdding(false)}>
+          <button className="icon-btn" style={{ fontSize: 12 }} onClick={() => setAdding(false)}>
             Cancel
           </button>
         </div>
       ) : (
-        <button className="icon-btn" style={{ fontSize: 10 }} onClick={() => setAdding(true)}>
+        <button className="icon-btn" style={{ fontSize: 12 }} onClick={() => setAdding(true)}>
           + Add Other Impact
         </button>
       )}
@@ -857,22 +857,22 @@ function FlagsSection({ state, campaignId, onStateChange }: { state: CampaignSta
   return (
     <div>
       <p className="panel-title">Content Flags</p>
-      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: -4, marginBottom: 6 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: -4, marginBottom: 6 }}>
         Content to handle carefully, off-screen, or avoid entirely. The GM respects these for the whole campaign.
       </p>
-      {state.flags.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>None set.</p>}
+      {state.flags.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>None set.</p>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
         {state.flags.map((f) => (
-          <span key={f} style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span key={f} style={{ fontSize: 13, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
             {f}
-            <button onClick={() => remove(f)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 10 }}>
+            <button onClick={() => remove(f)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12 }}>
               ✕
             </button>
           </span>
         ))}
       </div>
       <div style={{ display: 'flex', gap: 4 }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. body horror" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }} />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. body horror" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14 }} />
         <button className="icon-btn" onClick={add} disabled={!text.trim()}>
           Add
         </button>
@@ -899,22 +899,22 @@ function CampaignElementsSection({ state, campaignId, onStateChange }: { state: 
   return (
     <div>
       <p className="panel-title">Campaign Elements</p>
-      <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: -4, marginBottom: 6 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: -4, marginBottom: 6 }}>
         Story ingredients specific to this campaign -- the GM can roll on these to connect a new situation to something already established.
       </p>
-      {state.campaignElements.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>None set yet.</p>}
+      {state.campaignElements.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>None set yet.</p>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
         {state.campaignElements.map((e) => (
-          <span key={e.id} style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span key={e.id} style={{ fontSize: 13, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
             {e.text}
-            <button onClick={() => remove(e.id)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 10 }}>
+            <button onClick={() => remove(e.id)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12 }}>
               ✕
             </button>
           </span>
         ))}
       </div>
       <div style={{ display: 'flex', gap: 4 }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Faction: Silver Dominion" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }} />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Faction: Silver Dominion" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14 }} />
         <button className="icon-btn" onClick={add} disabled={!text.trim()}>
           Add
         </button>
@@ -938,33 +938,33 @@ function LogSection({ state, campaignId, onStateChange }: { state: CampaignState
       {(state.storySummary.distant || state.storySummary.recent) && (
         <div style={{ marginBottom: 14 }}>
           <p className="panel-title">Story So Far</p>
-          <p style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -6, marginBottom: 6 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: -6, marginBottom: 6 }}>
             Older parts of this campaign, automatically condensed to keep things running smoothly. The GM still remembers them.
           </p>
           {state.storySummary.distant && (
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6, paddingLeft: 8, borderLeft: '2px solid var(--border)', fontStyle: 'italic' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6, paddingLeft: 8, borderLeft: '2px solid var(--border)', fontStyle: 'italic' }}>
               {state.storySummary.distant}
             </div>
           )}
           {state.storySummary.recent && (
-            <div style={{ fontSize: 11, color: 'var(--text)', marginBottom: 6, paddingLeft: 8, borderLeft: '2px solid var(--accent-cyan)' }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 6, paddingLeft: 8, borderLeft: '2px solid var(--accent-cyan)' }}>
               {state.storySummary.recent}
             </div>
           )}
         </div>
       )}
       <p className="panel-title">Campaign Log</p>
-      {state.log.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>No entries yet.</p>}
+      {state.log.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>No entries yet.</p>}
       {state.log
         .slice()
         .reverse()
         .map((e, i) => (
-          <div key={i} style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4, paddingLeft: 8, borderLeft: '2px solid var(--border)' }}>
+          <div key={i} style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 4, paddingLeft: 8, borderLeft: '2px solid var(--border)' }}>
             {e.text}
           </div>
         ))}
       <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a note…" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 12 }} />
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a note…" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14 }} />
         <button className="icon-btn" onClick={add} disabled={!text.trim()}>
           Add
         </button>
@@ -1000,12 +1000,12 @@ function ClocksSection({ state, campaignId, onStateChange }: { state: CampaignSt
   return (
     <div>
       <p className="panel-title">Clocks</p>
-      {state.clocks.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12 }}>None active.</p>}
+      {state.clocks.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>None active.</p>}
       {state.clocks.map((c) => (
         <div className="track-card" key={c.id} style={{ padding: '6px 10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontSize: 12, fontWeight: 'bold' }}>{c.name}</span>
-            <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 9 }} onClick={() => stop(c.id)}>
+            <span style={{ fontSize: 14, fontWeight: 'bold' }}>{c.name}</span>
+            <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 11 }} onClick={() => stop(c.id)}>
               ✕
             </button>
           </div>
@@ -1026,7 +1026,7 @@ function ClocksSection({ state, campaignId, onStateChange }: { state: CampaignSt
             ))}
           </div>
           {c.filled < c.segments && (
-            <button className="icon-btn" style={{ fontSize: 10 }} onClick={() => advance(c.id, 1)}>
+            <button className="icon-btn" style={{ fontSize: 12 }} onClick={() => advance(c.id, 1)}>
               +1 segment
             </button>
           )}
@@ -1038,13 +1038,13 @@ function ClocksSection({ state, campaignId, onStateChange }: { state: CampaignSt
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Clock name"
-            style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 12, marginBottom: 4 }}
+            style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14, marginBottom: 4 }}
           />
           <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as 'campaign' | 'tension')}
-              style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11, color: 'var(--text)' }}
+              style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 13, color: 'var(--text)' }}
             >
               <option value="tension">Tension</option>
               <option value="campaign">Campaign</option>
@@ -1052,7 +1052,7 @@ function ClocksSection({ state, campaignId, onStateChange }: { state: CampaignSt
             <select
               value={segments}
               onChange={(e) => setSegments(Number(e.target.value) as 4 | 6 | 8 | 10)}
-              style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 11, color: 'var(--text)' }}
+              style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 13, color: 'var(--text)' }}
             >
               {[4, 6, 8, 10].map((n) => (
                 <option key={n} value={n}>
@@ -1088,7 +1088,7 @@ function IllustrationsSection({ state, campaignId, onStateChange }: { state: Cam
   return (
     <div>
       <p className="panel-title">Illustrations</p>
-      {state.illustrations.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 12, marginBottom: 6 }}>None yet.</p>}
+      {state.illustrations.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14, marginBottom: 6 }}>None yet.</p>}
       {state.illustrations
         .slice()
         .reverse()
@@ -1096,8 +1096,8 @@ function IllustrationsSection({ state, campaignId, onStateChange }: { state: Cam
           <div key={i.id} className="track-card" style={{ padding: 6 }}>
             <GeneratedImage imageId={i.imageId} alt={i.caption} style={{ width: '100%', height: 'auto', marginBottom: 4 }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{i.caption}</span>
-              <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 9, flexShrink: 0 }} onClick={() => remove(i.id)}>
+              <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{i.caption}</span>
+              <button className="icon-btn" style={{ padding: '1px 6px', fontSize: 11, flexShrink: 0 }} onClick={() => remove(i.id)}>
                 ✕
               </button>
             </div>
@@ -1249,20 +1249,22 @@ export function Composer({ onSend, disabled, prefill }: { onSend: (text: string)
   };
   return (
     <div className="composer">
-      <textarea
-        value={value}
-        placeholder="What does your ironsworn do?"
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            submit();
-          }
-        }}
-      />
-      <button onClick={submit} disabled={disabled}>
-        Transmit
-      </button>
+      <div className="composer-inner">
+        <textarea
+          value={value}
+          placeholder="What does your ironsworn do?"
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+        <button onClick={submit} disabled={disabled}>
+          Transmit
+        </button>
+      </div>
     </div>
   );
 }

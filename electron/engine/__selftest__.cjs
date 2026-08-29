@@ -3507,13 +3507,13 @@ await check("present_choice's move-selection extension uses a single, unified ax
 });
 
 console.log("Four playtesting reports, worked through in order of how concretely diagnosable each was. (1) Momentum burning: burn_momentum itself already existed with sophisticated, well-tested validation, and instruction 5 already told the AI to 'point out' the option -- but that was just narrative color the AI could mention in prose and then roll straight past, never actually pausing for a real answer. Rewired to call present_choice instead, making it a genuine, mechanical pause -- exactly the gap present_choice was built to close for other move-outcome decisions two sessions ago, just never connected to this one. A real bug was caught immediately while writing the fix: an interpolated ${momentum} in the new instruction text referenced a variable that was never in scope at that point in the function, which would have thrown on literally every single system prompt build -- caught by actually calling buildSystemPrompt directly rather than trusting a syntax check alone, fixed by using the correct c.meters.momentum path instead. (3) Expanded Hold's cargo tracker: the backend already had complete, correct resource tracking for it and nine other assets (ASSET_RESOURCES in state.cjs) -- confirmed directly, not assumed -- but the frontend never displayed asset.resource anywhere at all, for any of them. Added a real display, matching the existing health-meter's own tick-based style exactly -- and caught a second real bug while doing it: the CSS only had .meter-tick.filled paired with a specific color modifier (.health, .spirit, .supply, .integrity), no bare .filled rule, so the new ticks would have rendered as empty regardless of the actual value. Added a proper .resource color variant and fixed the class name before it could ship looking broken.");
-await check("instruction 5 now calls present_choice for a genuine burn-momentum decision, rather than just mentioning it in prose and continuing on, and the interpolated current momentum value is genuinely live (not a caught-and-fixed reference error) -- verified against two different momentum values, not just one", () => {
+await check("instruction 5 now checks roll_action_move's own momentum_burn field directly rather than computing the comparison itself, still calls present_choice for a genuine burn-momentum decision rather than just mentioning it in prose and continuing on, and the interpolated current momentum value is genuinely live (not a caught-and-fixed reference error) -- verified against two different momentum values, not just one", () => {
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
   cs.character.meters.momentum = 2;
   const p1 = buildSystemPrompt(cs);
-  assert.ok(p1.includes('Only when it\'s genuinely higher, call present_choice'));
+  assert.ok(p1.includes('If momentum_burn.available is true, call present_choice'));
   assert.ok(p1.includes('Burn momentum (currently 2)'));
   assert.ok(!p1.includes('you may point out that burning momentum is an option'), 'the old, non-pausing prose-only framing should be genuinely gone');
   cs.character.meters.momentum = 6;
@@ -4264,6 +4264,45 @@ await check("roll_bonus_challenge_dice works correctly as a real tool call, gene
   const prompt = buildSystemPrompt(cs);
   assert.ok(prompt.includes('call roll_bonus_challenge_dice with extra_die_count set to however many specialists are involved'));
   assert.ok(!prompt.includes('call roll_extra_challenge_die once for each specialist'), 'the old, superseded orchestration instructions should be genuinely gone');
+});
+
+console.log("A third real debug log surfaced a genuine bug matching the same underlying pattern as the previous two: correct, explicit guidance already existed telling the model exactly when to offer a momentum burn, and it simply wasn't followed. The real numbers were stark -- momentum 6, action score only 2, challenge dice 5 and 2 -- meaning burning momentum would have turned that exact miss into a strong hit, confirmed directly. The model never checked, never offered it, and went straight into the miss's consequences. Rather than trust a third round of restating already-correct prose, added a genuine structural fix matching the pattern that worked for the last two bugs: roll_action_move now computes and returns its own momentum_burn field directly in the same result the model is already reading to narrate the outcome, using the exact same threshold burn_momentum's own handler already enforces so the two can never disagree. The fact that a burn is available (and what it would produce) is no longer a separate mental check to remember -- it's already sitting in the data.");
+await check("roll_action_move's own momentum_burn field is correctly computed in every direction -- available and showing the real improved outcome when momentum genuinely exceeds the action score on a weak hit or miss, never available when momentum doesn't exceed the score, and never offered on an already-strong hit regardless of how much momentum is banked", async () => {
+  let foundImprovement = false;
+  for (let i = 0; i < 100 && !foundImprovement; i++) {
+    const cs = state.newCampaignState();
+    cs.character.name = 'Test';
+    cs.character.stats.iron = 1;
+    cs.character.meters.momentum = 6;
+    const r = await executeTool('roll_action_move', { move_name: 'Gain Ground', stat: 'iron', stat_value: 1 }, cs);
+    if (r.momentum_burn.available && r.momentum_burn.would_produce_outcome !== r.outcome) {
+      foundImprovement = true;
+      assert.ok(['strong_hit', 'weak_hit'].includes(r.momentum_burn.would_produce_outcome), 'a genuine improvement should move toward a better outcome tier, not a worse or identical one');
+    }
+  }
+  assert.ok(foundImprovement, 'a genuine outcome improvement should occur within 100 attempts given these odds');
+  for (let i = 0; i < 20; i++) {
+    const cs = state.newCampaignState();
+    cs.character.name = 'Test';
+    cs.character.stats.iron = 3;
+    cs.character.meters.momentum = 1;
+    const r = await executeTool('roll_action_move', { move_name: 'Gain Ground', stat: 'iron', stat_value: 3 }, cs);
+    assert.strictEqual(r.momentum_burn.available, false, 'must never be available when momentum does not exceed the action score');
+  }
+  for (let i = 0; i < 30; i++) {
+    const cs = state.newCampaignState();
+    cs.character.name = 'Test';
+    cs.character.stats.iron = 5;
+    cs.character.meters.momentum = 10;
+    const r = await executeTool('roll_action_move', { move_name: 'Gain Ground', stat: 'iron', stat_value: 5 }, cs);
+    if (r.outcome === 'strong_hit') assert.strictEqual(r.momentum_burn.available, false, 'must never be offered on an already-strong hit');
+  }
+});
+await check("reproduces the exact real-world scenario from the debug log directly -- action score 2, momentum 6, challenge dice [5, 2] -- and confirms the engine correctly identifies this as a genuine, available improvement to a strong hit, the exact case a real model missed entirely in actual play", async () => {
+  const outcome = dice.determineOutcome(2, [5, 2]);
+  assert.strictEqual(outcome.outcome, 'miss');
+  const burned = dice.determineOutcome(6, [5, 2]);
+  assert.strictEqual(burned.outcome, 'strong_hit', 'burning momentum in this exact real scenario should produce a strong hit, not a smaller improvement');
 });
 
 console.log(`\n${passed}/${total} checks passed.`);

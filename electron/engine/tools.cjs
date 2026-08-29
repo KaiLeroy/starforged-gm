@@ -1489,6 +1489,20 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
         adds: args.adds || 0,
         momentum: campaignState.character.meters.momentum,
       });
+      // Surfaced directly in this same result, not left as a separate fact the model has to
+      // remember to go check on its own -- real play showed that check being skipped entirely,
+      // even with explicit prompt guidance already telling the model exactly when to make it.
+      // A miss with momentum 6 against an action score of 2 should have offered a burn (it would
+      // have turned that exact miss into a strong hit) and simply didn't; nothing here can force
+      // the model to act on this, but putting the computed answer inside the one result it's
+      // already reading removes the separate step where that answer previously went missing.
+      // Same threshold burn_momentum's own handler enforces (momentum must genuinely exceed the
+      // score, not just be present) so the two can never disagree with each other.
+      let momentumBurn = { available: false };
+      if ((result.outcome === 'weak_hit' || result.outcome === 'miss') && result.momentum > result.actionScore) {
+        const preview = dice.determineOutcome(result.momentum, result.challengeDice);
+        momentumBurn = { available: true, would_produce_outcome: preview.outcome };
+      }
       return {
         move: {
           id: move.$id,
@@ -1499,6 +1513,7 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
         stat: args.stat,
         ...result,
         outcome_text: outcomeTextFor(move, result.outcome),
+        momentum_burn: momentumBurn,
       };
     }
     case 'check_asset_bonuses': {

@@ -1310,6 +1310,50 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## UI adjustments (bigger character sheet font, narrower story area), and a third real debug log with the same underlying pattern
+
+Two requests handled this pass: real UI adjustments, and a third
+uploaded debug log.
+
+**Character sheet font and story area width, actually changed, not
+just planned.** All 73 inline font-size declarations across the
+character sheet's components (AssetCard, CharacterSheet itself, and
+every section it renders -- connections, clocks, illustrations, flags,
+campaign elements, the log) bumped +2px, plus the named CSS classes
+updated to match, with the stat grid's own value getting an extra
+bump as the sheet's single most prominent number. The sidebar widened
+from 320px to 380px to give that larger text room without cramping,
+and the chat log and composer both capped to a shared, centered
+max-width so the story area reads narrower rather than stretching
+edge-to-edge on wide windows. Full build and TypeScript check both
+clean.
+
+**A third real debug log, and the same underlying pattern as the
+last one -- correct, explicit guidance already existed and simply
+wasn't followed.** After a Gain Ground roll came back a miss with
+momentum at 6 against an action score of only 2, the AI never
+checked whether burning momentum would help. Checked directly: it
+would have -- turning that exact miss into a strong hit, since
+momentum (6) beats both challenge dice (5 and 2) where the actual
+action score didn't. The existing instruction already told the model
+precisely when to make this check; it just didn't.
+
+**Applied the same structural fix that worked for the last two real
+bugs, rather than trust a third round of restating already-correct
+prose.** roll_action_move now computes and returns its own
+momentum_burn field directly in the same result the model is already
+reading to narrate the outcome -- available or not, and what burning
+would actually produce -- using the exact same threshold
+burn_momentum's own handler already enforces, so the two can never
+disagree with each other. The fact is no longer a separate mental
+check to remember; it's already sitting in the data the model has in
+front of it either way.
+
+2 new tests, including one that reproduces the exact real-world
+numbers from the log and confirms the engine identifies the genuine
+improvement a real model missed. Full regression, syntax, types,
+build, and playtest all clean.
+
 ## A second real debug log: a much more severe failure -- not a guidance gap this time, correct guidance simply never followed
 
 A second uploaded debug log, and a much more serious failure than the
