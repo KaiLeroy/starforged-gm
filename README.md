@@ -1310,6 +1310,28 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Prose was too dense -- rewrote the narration instruction with a real length target and a concretely anchored show-don't-tell example
+
+Direct feedback: the prose felt too dense. The existing narration
+instruction already gestured at this ("vividly, but concisely...
+not an essay") but gave no concrete target and no actionable path to
+actually achieving it -- vague enough that a model could satisfy it
+while still writing the multi-paragraph responses visible throughout
+this session's own playtest logs.
+
+Rewrote it with a real length target -- 2-4 sentences for a routine
+beat, rarely more than a short paragraph even for a major one -- and
+a show-don't-tell principle anchored to a concrete, paired example
+("her hand won't stay still on the grip" instead of "she's afraid")
+rather than just naming the abstract principle and trusting that to
+be enough. Also added explicit guidance against two specific patterns
+worth naming directly: stacking several separate observations or
+revelations into a single response when the moment only calls for
+one, and spelling out a beat's emotional weight in words after the
+concrete detail has already carried it.
+
+1 new test. Full regression, syntax, types, and playtest all clean.
+
 ## Correcting my own earlier claim: the vow rank-change gap was real -- a tool was missing, not just a model-compliance issue
 
 Went back to the vow rank-change question after being pointed
