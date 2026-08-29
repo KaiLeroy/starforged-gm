@@ -4411,15 +4411,16 @@ await check("set_track_rank rejects an unknown track id and an invalid rank clea
 });
 
 console.log("Addressed direct feedback that the prose was too dense. The existing narration instruction already gestured at brevity ('vividly, but concisely... not an essay') but gave no concrete target and no actionable guidance for actually achieving it -- rewrote it with a real length target (2-4 sentences for a routine beat, rarely more than a short paragraph even for a major one) and a concretely anchored show-don't-tell principle, with a paired example ('her hand won't stay still on the grip' instead of 'she's afraid') rather than just restating the abstract principle by name. Also added explicit guidance against a pattern visible in this session's own playtest logs -- stacking several separate observations or revelations into one response, and spelling out the emotional weight of a beat after the concrete detail has already carried it.");
-await check("the narration instruction now gives a real, concrete length target and a specific, anchored show-don't-tell example, replacing the old vague 'vividly, but concisely' phrasing that gave no actual guidance for achieving brevity", async () => {
+await check("the narration instruction now gives a real, concrete length target and a specific, anchored show-don't-tell example, replacing the old vague 'vividly, but concisely' phrasing that gave no actual guidance for achieving brevity -- and reflects the follow-up adjustment to a longer 6-8 sentence, 1-2 paragraph target", async () => {
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
   const prompt = buildSystemPrompt(cs);
-  assert.ok(prompt.includes('2-4 sentences for a routine beat, rarely more than a short paragraph even for a major turning point'));
+  assert.ok(prompt.includes('6-8 sentences, 1-2 paragraphs'));
   assert.ok(prompt.includes('her hand won\'t stay still on the grip'), 'should include a concrete, anchored example, not just the abstract show-don\'t-tell principle by name');
-  assert.ok(prompt.includes("don't stack several separate observations or revelations into a single response"));
+  assert.ok(prompt.includes("don't pad toward the target with observations or revelations the moment doesn't call for"));
   assert.ok(!prompt.includes('vividly, but concisely (a few sentences to a short paragraph, not an essay)'), 'the old, vague phrasing should be genuinely gone, not left alongside the new guidance');
+  assert.ok(!prompt.includes('2-4 sentences for a routine beat'), 'the first-pass length target should be genuinely replaced, not left alongside the adjusted one');
 });
 
 console.log(`\n${passed}/${total} checks passed.`);

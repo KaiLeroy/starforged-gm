@@ -1310,6 +1310,22 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Adjusted the narration length target to 6-8 sentences, 1-2 paragraphs
+
+A direct follow-up to the previous pass: the 2-4 sentence target was
+tighter than wanted. Adjusted to 6-8 sentences, 1-2 paragraphs, and
+reworded the surrounding guidance to stay internally consistent with
+the longer target -- "don't stack several separate observations...
+when the moment only calls for one" made sense against a 2-4 sentence
+ceiling, but reads as contradictory against 6-8, so it's now "don't
+pad toward the target with observations the moment doesn't call for"
+instead, which keeps the actual intent (no artificial filler) without
+fighting the new length itself. The show-don't-tell example and
+principle from the previous pass are unchanged.
+
+1 existing test updated to match. Full regression, syntax, types, and
+playtest all clean.
+
 ## Prose was too dense -- rewrote the narration instruction with a real length target and a concretely anchored show-don't-tell example
 
 Direct feedback: the prose felt too dense. The existing narration
