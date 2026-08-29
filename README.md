@@ -1310,6 +1310,53 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## A real bug from real play: constructed IDs instead of returned ones -- traced to a systemic gap across 27 tool parameters, not just one
+
+A real debug log from actual play, uploaded directly, showed a
+genuine failure on the very first turn of a brand new campaign.
+add_connection correctly created a connection named Halia Wade and
+returned its real, engine-generated id ("cmte8jmd10") -- but the
+model's next two calls, setting her role and rank, used a constructed,
+human-readable id instead ("conn-halia-wade"), which the engine
+correctly rejected since nothing by that name actually existed. The
+model happened to self-correct two calls later and used the real id
+successfully, so this specific case recovered on its own -- but two
+calls were wasted getting there, and there's no guarantee a less
+persistent model recovers the same way every time.
+
+**Traced this to its actual root cause instead of patching the one
+instance.** connection_id had zero description anywhere in its own
+tool schema -- nothing telling the model, at the exact moment it's
+filling in that value, that it has to be the literal id from
+add_connection's own result rather than something reasonable-looking
+constructed from the name. Checked whether this was isolated to
+connection_id, and it wasn't: a systematic scan of every tool
+parameter in the entire app turned up 27 separate id parameters with
+no description at all.
+
+**Fixed all 27, each with the specific, correct guidance for how that
+particular id actually gets established** -- not a single generic
+sentence copy-pasted everywhere. For ids the engine generates and
+returns (connections, assets, sectors, passages, clocks), the fix
+says explicitly: use the exact returned value, never construct one.
+create_progress_track turned out to be a genuine, confirmed exception
+-- checked its actual schema rather than assumed a uniform pattern
+held everywhere, and found its id is chosen BY the model when
+creating the track, not returned afterward, so its own description
+says the opposite: reuse the same chosen value consistently.
+mark_legacy_ticks needed a third, different clarification again,
+since its track_id isn't created via create_progress_track at all --
+it's always one of three fixed, permanently-existing legacy tracks.
+Also added a short, general principle to the system prompt covering
+this whole pattern across every create-style tool at once, as a
+second, reinforcing layer on top of the now-fixed individual
+descriptions.
+
+4 new tests, including one that scans the entire tool set the same
+way the original gap was found, confirming all 27 are genuinely
+fixed rather than spot-checked. Full regression, syntax, types, and
+playtest all clean.
+
 ## Auto-update actually publishing now, end to end -- moved to GitHub Actions after a real mistake and a real network wall
 
 Following up on the auto-update feature: the actual publish step is

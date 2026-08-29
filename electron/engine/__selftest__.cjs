@@ -4183,6 +4183,44 @@ await check("Slayer's third ability now includes its previously-missing uncondit
   assert.ok(prompt.includes('they also take a trophy of the victory and mark_legacy_ticks(legacy-quests, 2)'));
 });
 
+console.log("A real, uploaded debug log from actual play surfaced a genuine bug on the very first turn of a new campaign: add_connection correctly returned a real, engine-generated id ('cmte8jmd10') for a new connection named Halia Wade, but the model's next two calls -- set_connection_role and set_connection_rank -- used a constructed, human-readable id instead ('conn-halia-wade'), which the engine correctly rejected since it didn't match anything real. The model self-corrected two calls later and used the actual returned id successfully, so this particular case recovered on its own, but two calls were wasted getting there and a less persistent model could easily have left the connection's role and rank never actually set. Traced this to its real root cause rather than patching the one instance: connection_id had zero description in its own tool schema, giving the model nothing to go on beyond the bare parameter name at the exact moment it's deciding what value to fill in. Checked whether this was isolated to connection_id and found it wasn't -- a systematic scan turned up 27 separate id parameters across the entire tool set with no description at all, not just this one. Fixed all 27, each with the specific, correct guidance for how that id actually gets established: for ids the engine generates and returns (connections, assets, sectors, passages, clocks), the description now explicitly says to use the exact value returned, never a constructed one. For create_progress_track specifically -- confirmed as a genuine, deliberate exception by reading its actual schema before assuming a uniform pattern -- the id is chosen by the model itself when creating the track, not returned afterward, so its description says to reuse that same chosen value consistently instead. mark_legacy_ticks's own track_id needed a third, different kind of clarification since it isn't created via create_progress_track at all -- it's always one of three fixed, always-existing legacy tracks. Also added a short, general reinforcing principle to the system prompt covering this pattern across every create-style tool at once, as a second, belt-and-suspenders layer on top of the now-fixed individual tool descriptions.");
+await check("every one of the 27 previously-undocumented id parameters across the entire tool set now has a real description, verified by the same systematic scan that originally found the gap -- not spot-checked, the full set", async () => {
+  const { TOOL_SCHEMAS } = require('./tools.cjs');
+  const missing = [];
+  for (const t of TOOL_SCHEMAS) {
+    const props = t.function.parameters.properties || {};
+    for (const [key, schema] of Object.entries(props)) {
+      if (/_id$/.test(key) && !/^(cell|hex)/.test(key) && !schema.description) missing.push(`${t.function.name}.${key}`);
+    }
+  }
+  assert.deepStrictEqual(missing, [], `these id parameters are still missing a description: ${missing.join(', ')}`);
+});
+await check("the exact parameter that caused the real bug (set_connection_role's connection_id) now explicitly instructs using the literal id from add_connection's own result, and explicitly warns against constructing one from the connection's name -- the precise failure mode observed in real play", async () => {
+  const { TOOL_SCHEMAS } = require('./tools.cjs');
+  const t = TOOL_SCHEMAS.find((t) => t.function.name === 'set_connection_role');
+  const desc = t.function.parameters.properties.connection_id.description;
+  assert.ok(desc.includes("exact"), 'should require the exact id');
+  assert.ok(desc.includes('add_connection'), 'should name the actual source of the real id');
+  assert.ok(desc.includes('never construct or guess'), 'should explicitly warn against the failure mode actually observed');
+});
+await check("create_progress_track's id parameters are correctly treated as the genuine exception they are -- mark_progress_track's track_id says to reuse the model's own chosen slug, not fetch a value from a result, and mark_legacy_ticks's track_id gets its own, different clarification since it isn't created via create_progress_track at all", async () => {
+  const { TOOL_SCHEMAS } = require('./tools.cjs');
+  const markProgress = TOOL_SCHEMAS.find((t) => t.function.name === 'mark_progress_track');
+  const trackDesc = markProgress.function.parameters.properties.track_id.description;
+  assert.ok(trackDesc.includes('model-chosen'), 'should correctly describe this as the model-chosen case, not an engine-generated one');
+  const markLegacy = TOOL_SCHEMAS.find((t) => t.function.name === 'mark_legacy_ticks');
+  const legacyDesc = markLegacy.function.parameters.properties.track_id.description;
+  assert.ok(legacyDesc.includes('never created via create_progress_track'), 'should correctly distinguish this fixed-track case from the model-chosen slug case');
+});
+await check("the system prompt now includes a general, reinforcing principle covering this exact id-usage pattern across every create-style tool at once, on top of the individual tool-schema fixes", async () => {
+  const { buildSystemPrompt } = require('./systemPrompt.cjs');
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  const prompt = buildSystemPrompt(cs);
+  assert.ok(prompt.includes('every later call that references that same thing needs the EXACT id from that result, copied verbatim'));
+  assert.ok(prompt.includes('conn-halia-wade'), 'should reference the actual real-world failure case as a concrete example');
+});
+
 console.log(`\n${passed}/${total} checks passed.`);
 if (process.exitCode) {
   console.error('SOME CHECKS FAILED -- see above.');

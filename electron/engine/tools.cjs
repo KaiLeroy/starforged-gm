@@ -128,7 +128,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          track_id: { type: 'string' },
+          track_id: { type: 'string', description: "The same id chosen when this track was created via create_progress_track -- not a separately-generated value; create_progress_track's own id is model-chosen, so this must exactly match whatever slug was used there." },
           rank: { type: 'string', enum: ['troublesome', 'dangerous', 'formidable', 'extreme', 'epic'] },
         },
         required: ['track_id', 'rank'],
@@ -162,7 +162,7 @@ const TOOL_SCHEMAS = [
         'themselves automatically at their 10th box and should never be deleted.',
       parameters: {
         type: 'object',
-        properties: { track_id: { type: 'string' } },
+        properties: { track_id: { type: 'string', description: "The same id chosen when this track was created via create_progress_track -- not a separately-generated value; create_progress_track's own id is model-chosen, so this must exactly match whatever slug was used there." } },
         required: ['track_id'],
       },
     },
@@ -347,7 +347,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string' },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
           delta: { type: 'integer', description: 'Positive to gain, negative to spend/lose.' },
         },
         required: ['asset_id', 'delta'],
@@ -365,7 +365,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string' },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
           current: { type: 'integer', description: 'New current value, if it changed.' },
           max: { type: 'integer', description: 'New max value, if it changed (e.g. an ability unlock that raises capacity).' },
         },
@@ -684,7 +684,7 @@ const TOOL_SCHEMAS = [
       description: "Switches which sector is current -- the one the map displays and location tools operate on by default. Call this when the party travels to a different sector (not just a different hex within the same one).",
       parameters: {
         type: 'object',
-        properties: { sector_id: { type: 'string' } },
+        properties: { sector_id: { type: 'string', description: "The exact \"id\" field returned by create_sector's own result -- never construct or guess one, always use the literal value that call returned. The default starting sector is always exactly \"sector-1\", not something to look up." } },
         required: ['sector_id'],
       },
     },
@@ -780,7 +780,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          passage_id: { type: 'string' },
+          passage_id: { type: 'string', description: "The exact \"id\" field returned by create_passage's own result -- never construct or guess one, always use the literal value that call returned." },
           sector_id: { type: 'string', description: 'Optional -- defaults to the current sector.' },
         },
         required: ['passage_id'],
@@ -857,7 +857,7 @@ const TOOL_SCHEMAS = [
         '"Lose the connection" outcome, or when a suspended connection\'s affirming quest is refused or fails.',
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -873,7 +873,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          connection_id: { type: 'string' },
+          connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." },
           rank: { type: 'string', enum: ['troublesome', 'dangerous', 'formidable', 'extreme', 'epic'] },
         },
         required: ['connection_id', 'rank'],
@@ -892,7 +892,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          connection_id: { type: 'string' },
+          connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." },
           role: { type: 'string' },
         },
         required: ['connection_id', 'role'],
@@ -912,7 +912,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          connection_id: { type: 'string' },
+          connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." },
           location: { type: 'string' },
         },
         required: ['connection_id', 'location'],
@@ -928,7 +928,7 @@ const TOOL_SCHEMAS = [
         'from +1 to +2. Mutually exclusive with expand_connection_role -- the player picks one, not both.',
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -943,7 +943,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          connection_id: { type: 'string' },
+          connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." },
           second_role: { type: 'string' },
         },
         required: ['connection_id', 'second_role'],
@@ -960,7 +960,7 @@ const TOOL_SCHEMAS = [
         "resolves, or remove_connection if the player refuses or fails it (the relationship is permanently undone).",
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -972,7 +972,7 @@ const TOOL_SCHEMAS = [
       description: "Restores a connection's suspended benefits once the affirming quest from a Test Your Relationship miss is fulfilled.",
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -987,7 +987,7 @@ const TOOL_SCHEMAS = [
         'differently (roll_action_move using the rank-as-stat table in the system instructions, not this tool).',
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -1002,7 +1002,7 @@ const TOOL_SCHEMAS = [
         'recommit -- only call recommit_after_failed_bond if they do.',
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -1017,7 +1017,7 @@ const TOOL_SCHEMAS = [
         'connection as bonded. Call after a strong or weak hit on roll_connection_progress.',
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -1054,7 +1054,7 @@ const TOOL_SCHEMAS = [
         "Vow, or abandon the expedition), don't call it.",
       parameters: {
         type: 'object',
-        properties: { track_id: { type: 'string' } },
+        properties: { track_id: { type: 'string', description: "The same id chosen when this track was created via create_progress_track -- not a separately-generated value; create_progress_track's own id is model-chosen, so this must exactly match whatever slug was used there." } },
         required: ['track_id'],
       },
     },
@@ -1070,7 +1070,7 @@ const TOOL_SCHEMAS = [
         'actually chosen to recommit -- if they don\'t, nothing further happens to the connection.',
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -1084,7 +1084,7 @@ const TOOL_SCHEMAS = [
         'hit-with-a-match outcome once bonded, or any other moment the fiction earns it.',
       parameters: {
         type: 'object',
-        properties: { connection_id: { type: 'string' } },
+        properties: { connection_id: { type: 'string', description: "The exact \"id\" field returned by add_connection's own result -- never construct or guess one (e.g. from the connection's name), always use the literal value that call returned." } },
         required: ['connection_id'],
       },
     },
@@ -1100,7 +1100,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          track_id: { type: 'string', enum: ['legacy-quests', 'legacy-bonds', 'legacy-discoveries'] },
+          track_id: { type: 'string', enum: ['legacy-quests', 'legacy-bonds', 'legacy-discoveries'], description: 'One of these three fixed, always-existing values -- never created via create_progress_track, so there is nothing to look up here.' },
           ticks: { type: 'integer', minimum: 1 },
         },
         required: ['track_id', 'ticks'],
@@ -1121,7 +1121,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          track_id: { type: 'string' },
+          track_id: { type: 'string', description: "The same id chosen when this track was created via create_progress_track -- not a separately-generated value; create_progress_track's own id is model-chosen, so this must exactly match whatever slug was used there." },
           delta: { type: 'integer', description: 'Signed tick change. Negative to clear progress.' },
         },
         required: ['track_id', 'delta'],
@@ -1179,7 +1179,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string' },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
           broken: { type: 'boolean' },
         },
         required: ['asset_id', 'broken'],
@@ -1214,7 +1214,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string' },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
           condition: { type: 'string', enum: ['battered', 'cursed'] },
           marked: { type: 'boolean' },
         },
@@ -1263,7 +1263,7 @@ const TOOL_SCHEMAS = [
         "related, this can't be undone by spending experience.",
       parameters: {
         type: 'object',
-        properties: { asset_id: { type: 'string' } },
+        properties: { asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." } },
         required: ['asset_id'],
       },
     },
@@ -1321,7 +1321,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          clock_id: { type: 'string' },
+          clock_id: { type: 'string', description: "The exact \"id\" field returned by create_clock's own result -- never construct or guess one, always use the literal value that call returned." },
           amount: { type: 'integer', minimum: 1 },
         },
         required: ['clock_id', 'amount'],
@@ -1335,7 +1335,7 @@ const TOOL_SCHEMAS = [
       description: "Remove a clock from play -- it's been resolved, stopped, or is no longer relevant. Also appropriate once a clock fills completely and its outcome has been narrated.",
       parameters: {
         type: 'object',
-        properties: { clock_id: { type: 'string' } },
+        properties: { clock_id: { type: 'string', description: "The exact \"id\" field returned by create_clock's own result -- never construct or guess one, always use the literal value that call returned." } },
         required: ['clock_id'],
       },
     },
