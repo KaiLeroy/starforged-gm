@@ -22,6 +22,50 @@ function rollExtraChallengeDie() {
   return randInt(1, 10);
 }
 
+/**
+ * Consolidates the whole "roll bonus challenge dice, check for a forced match, work out every
+ * pairing's real outcome" sequence into a single call -- built specifically because a real
+ * playtest showed the alternative (the model orchestrating roll_extra_challenge_die, checking
+ * for a match itself, then computing each pairing's outcome by hand before presenting a choice)
+ * failing outright: not just an occasional wrong pairing, but a full turn where none of that
+ * happened at all -- the model fabricated a die value, a fake choice UI, and a strong-hit outcome
+ * for a pairing that was actually a weak hit, without calling a single real tool for any of it.
+ * Existing, correct guidance already told it exactly what to do; it didn't do any of it. This
+ * doesn't fix that on its own -- nothing can force a model to call a tool it skips entirely --
+ * but it collapses several steps that each individually invite a mistake into one atomic call:
+ * if it's engaged with at all, every pairing's outcome is already computed here, correctly,
+ * before the model ever has to reason about which one is which.
+ *
+ * Sleuth is the fixed case (always exactly one extra die); Cohort's "one reroll per participating
+ * specialist" is the variable one -- extraDieCount covers both from the same function.
+ */
+function rollBonusChallengeDice(actionScore, originalChallengeDice, extraDieCount = 1) {
+  const extraDice = [];
+  for (let i = 0; i < extraDieCount; i++) extraDice.push(rollExtraChallengeDie());
+  const allDice = [...originalChallengeDice, ...extraDice];
+
+  // A "match" here means ANY two dice in the full pool share a value -- not just the original
+  // pair. Checked across every distinct pairing, first match found wins (the rule doesn't
+  // distinguish between multiple matching pairs if that were ever possible).
+  const pairIndices = [];
+  for (let i = 0; i < allDice.length; i++) {
+    for (let j = i + 1; j < allDice.length; j++) pairIndices.push([i, j]);
+  }
+  const matchedIndices = pairIndices.find(([i, j]) => allDice[i] === allDice[j]);
+
+  if (matchedIndices) {
+    const dice_used = [allDice[matchedIndices[0]], allDice[matchedIndices[1]]];
+    const result = determineOutcome(actionScore, dice_used);
+    return { extra_dice: extraDice, all_dice: allDice, forced_match: true, dice_used, ...result };
+  }
+
+  const possible_pairings = pairIndices.map(([i, j]) => {
+    const dice = [allDice[i], allDice[j]];
+    return { dice, ...determineOutcome(actionScore, dice) };
+  });
+  return { extra_dice: extraDice, all_dice: allDice, forced_match: false, possible_pairings };
+}
+
 /** Missile Array, Demolitionist, and Lore Hunter all grant "reroll any challenge dice" under
  *  specific conditions -- a fresh, independent pair, not a modification of the original one. */
 function rerollChallengeDice() {
@@ -198,6 +242,7 @@ module.exports = {
   rollActionDie,
   rollChallengeDice,
   rollExtraChallengeDie,
+  rollBonusChallengeDice,
   rerollChallengeDice,
   rollD100,
   rollSevereHarmTable,

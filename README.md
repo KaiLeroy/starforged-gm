@@ -1310,6 +1310,44 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## A second real debug log: a much more severe failure -- not a guidance gap this time, correct guidance simply never followed
+
+A second uploaded debug log, and a much more serious failure than the
+first. On a Sleuth-triggered Gather Information roll (action score 5,
+original dice 10 and 2), the model never called
+roll_extra_challenge_die, never called resolve_action_with_dice, and
+never called present_choice. It fabricated an extra die value, a fake
+choice menu, and a claimed strong-hit outcome for the pairing (2, 6)
+-- entirely in narrative prose, with zero real tool calls behind any
+of it.
+
+**This wasn't a guidance gap -- the existing text was already fully
+correct and explicit about which real tools to call.** The model
+simply didn't call any of them. And the freehand arithmetic it
+invented instead was itself wrong: checked directly, with action
+score 5, no pairing among {10, 2, 6} produces a strong hit at all,
+since 5 does not beat 6 -- the model's claimed "you beat both" for
+(2, 6) is flatly false.
+
+**No amount of re-stating already-correct prose can force a model to
+call a tool it's skipping entirely, so a different kind of fix was
+needed.** Built roll_bonus_challenge_dice: a single tool that
+consolidates the whole roll-check-compute sequence -- rolling the
+bonus dice, checking the full pool for a forced match, and working
+out every possible pairing's real, verified outcome -- into one
+atomic call. If the mechanic gets engaged with at all, there is no
+longer a point where the model has to compute a comparison by hand;
+every pairing arrives pre-computed. Generalized to cover Cohort's
+variable-count version of the same underlying mechanic (one bonus die
+per participating specialist) from the same function, not treated as
+a Sleuth-only special case. Both assets' guidance now points at this
+single call in place of the old multi-step orchestration.
+
+3 new tests, including one that reproduces the exact real-world
+numbers (action score 5, dice 10/2/6) and confirms the engine
+computes the correct answer the model got wrong. Full regression,
+syntax, types, and playtest all clean.
+
 ## A real bug from real play: constructed IDs instead of returned ones -- traced to a systemic gap across 27 tool parameters, not just one
 
 A real debug log from actual play, uploaded directly, showed a

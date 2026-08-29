@@ -292,8 +292,35 @@ const TOOL_SCHEMAS = [
         "Rolls one additional, independent challenge die (1-10). For the small number of assets that need a third " +
         'challenge die on top of the normal two -- Sleuth ("roll three challenge dice and choose two"), Loyalist ' +
         '("roll one challenge die" to potentially replace an ally\'s -- co-op only, not applicable solo). After ' +
-        'rolling, use resolve_action_with_dice to recompute the outcome with whichever two dice actually apply.',
+        'rolling, use resolve_action_with_dice to recompute the outcome with whichever two dice actually apply. ' +
+        'roll_bonus_challenge_dice below does this whole sequence -- including every pairing\'s real outcome -- ' +
+        'in one call; prefer that one for Sleuth/Cohort specifically rather than orchestrating this by hand.',
       parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'roll_bonus_challenge_dice',
+      description:
+        'Rolls the bonus challenge dice for Sleuth (always 1 extra) or Cohort\'s strategize-together (1 per ' +
+        'participating specialist), checks the full pool for a forced match, and returns the REAL, already-' +
+        'computed outcome for every case -- never compute any of this by hand. If any two dice in the full pool ' +
+        '(original two plus the extra ones) share a value, that pair is mandatory per the rulebook -- the result\'s ' +
+        '"forced_match" is true, "dice_used" is that pair, and the outcome fields are already final; there is no ' +
+        'choice to offer. If nothing matches, "forced_match" is false and "possible_pairings" lists every distinct ' +
+        'pair from the pool with its own real, pre-computed outcome (strong_hit/weak_hit/miss) -- read the pairing ' +
+        'that\'s actually being offered directly from this list when building present_choice, rather than working ' +
+        'out whether a given action score beats a given die value in your own head.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action_score: { type: 'integer', description: "The character's own action score from the original roll -- the same value already used for the initial two-die comparison." },
+          original_challenge_dice: { type: 'array', items: { type: 'integer' }, description: 'The original two challenge dice from the roll this is adding onto, e.g. [10, 2].' },
+          extra_die_count: { type: 'integer', description: 'How many bonus dice to roll -- 1 for Sleuth, or the number of participating specialists for Cohort. Defaults to 1 if omitted.' },
+        },
+        required: ['action_score', 'original_challenge_dice'],
+      },
     },
   },
   {
@@ -1613,6 +1640,12 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
     }
     case 'roll_extra_challenge_die': {
       return { die: dice.rollExtraChallengeDie() };
+    }
+    case 'roll_bonus_challenge_dice': {
+      if (!Array.isArray(args.original_challenge_dice) || args.original_challenge_dice.length !== 2) {
+        return { error: 'original_challenge_dice must be an array of exactly 2 integers.' };
+      }
+      return dice.rollBonusChallengeDice(args.action_score, args.original_challenge_dice, args.extra_die_count || 1);
     }
     case 'reroll_challenge_dice': {
       return { challenge_dice: dice.rerollChallengeDice() };
