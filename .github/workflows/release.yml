@@ -1,0 +1,42 @@
+# Builds and publishes a Windows release whenever a version tag (v*) is pushed.
+#
+# Runs on GitHub's own windows-latest runner rather than the environment that develops this
+# project -- deliberately, since that environment's network egress policy blocks
+# uploads.github.com (the endpoint GitHub Releases requires for asset uploads, architecturally
+# separate from api.github.com), which makes publishing impossible from there no matter how the
+# request is made. This runner has no such restriction, and building natively on Windows also
+# means no Wine cross-compilation step is needed here at all, unlike a Linux-hosted build.
+#
+# Publishing itself uses the GITHUB_TOKEN GitHub provides automatically to every workflow run,
+# scoped to just this repo for the run's duration -- no personal access token is stored or used
+# for this ongoing process.
+name: Release
+
+'on':
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish
+        run: npm run dist:win:publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
