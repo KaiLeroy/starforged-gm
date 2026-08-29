@@ -313,6 +313,46 @@ textarea {
   color: var(--text);
 }
 
+.inline-choice {
+  border: 1px solid var(--accent-copper);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 4px;
+  background: var(--bg-raised);
+}
+.inline-choice .choice-prompt {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  margin: 0 0 10px;
+}
+.inline-choice .choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inline-choice button.icon-btn {
+  text-align: left;
+  padding: 8px 10px;
+  border-color: var(--accent-copper);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.inline-choice .choice-option-label {
+  font-weight: bold;
+}
+.inline-choice .choice-option-description {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: normal;
+}
+.inline-choice .choice-custom {
+  margin-top: 12px;
+}
+
 .markdown-content > *:first-child {
   margin-top: 0;
 }

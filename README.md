@@ -1310,6 +1310,38 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Choice prompts moved into the chat itself -- no more darkening overlay, no more blocked scrolling
+
+Real feedback on the pending-choice UI: the darkening overlay should
+go, and the chat behind it should stay scrollable. Underneath the
+question was whether the choice could become part of the chat itself
+rather than a separate popup at all -- which turned out to be the
+right fix for both problems at once, not a third, separate one.
+
+**What ChoiceModal actually was**: a true full-screen modal --
+`position: fixed`, covering the whole viewport, a 75%-opacity dark
+background, sitting on top of everything including the chat log.
+Being fixed and full-screen, it necessarily intercepted every mouse
+event on what was behind it, including scrolling -- there was no
+version of that component that could leave the chat interactive
+underneath it.
+
+**Rebuilt as InlineChoice**, rendered as part of the chat log itself
+-- the last item in the scrollable list, right where a new GM message
+would otherwise appear, not a separate overlay layered on top of
+anything. No backdrop exists to darken, and the chat is never blocked
+from scrolling, because the choice is just ordinary scrollable content
+now, styled to read as the GM's own turn (a bordered panel matching
+where a message bubble would sit) with its option buttons and
+optional free-text field inline underneath. The existing auto-scroll
+effect already re-fires whenever a new choice appears, so it comes
+into view the same way a new message would.
+
+No new automated tests -- this project has no frontend component test
+harness, matching how the earlier font-size and layout change was
+verified. TypeScript check and full build both clean; a visual preview
+using the app's real colors and fonts confirmed the result directly.
+
 ## Adjusted the narration length target to 6-8 sentences, 1-2 paragraphs
 
 A direct follow-up to the previous pass: the 2-4 sentence target was

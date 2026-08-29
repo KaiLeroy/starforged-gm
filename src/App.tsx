@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { CampaignRecord, ChatEvent, Config, MoveSummary, Stats } from './types';
-import { CharacterSheet, ChatLog, ChoiceModal, Composer, NewCampaignModal, SettingsModal } from './components';
+import { CharacterSheet, ChatLog, Composer, NewCampaignModal, SettingsModal } from './components';
 import { DisplayMessage, TxEvent, parseDisplayMessages } from './utils';
 import { SectorView } from './SectorView';
 import { TruthsView } from './TruthsView';
@@ -129,7 +129,7 @@ export default function App() {
     }
   };
 
-  // Continues a turn present_choice paused -- see ChoiceModal and chat:resolve-choice's own doc
+  // Continues a turn present_choice paused -- see InlineChoice and chat:resolve-choice's own doc
   // comment in main.cjs for the full design. Mirrors handleSend's own shape closely (optimistic
   // update, live event streaming, error handling) since it's really the same kind of operation:
   // sending something to the GM and waiting for the turn to actually finish, just resuming an
@@ -312,6 +312,8 @@ export default function App() {
               canUndo={canUndo && !sending}
               onEdit={handleEditLast}
               onRegenerate={handleRegenerate}
+              pendingChoice={campaign.pendingChoice}
+              onChoose={handleResolveChoice}
             />
           </div>
           {connectionError && (
@@ -332,7 +334,6 @@ export default function App() {
       )}
 
       {showMoves && <MovesPanel moves={moves} onTrigger={handleMoveTrigger} onClose={() => setShowMoves(false)} />}
-      {campaign.pendingChoice && <ChoiceModal choice={campaign.pendingChoice} onChoose={handleResolveChoice} />}
       {showCustomAssets && <CustomAssetsModal onClose={() => setShowCustomAssets(false)} />}
       {showGallery && <ImageGallery state={campaign.state} onClose={() => setShowGallery(false)} />}
       {showSettings && <SettingsModal config={config} onSave={handleSaveConfig} onClose={() => setShowSettings(false)} campaignId={campaignId || 'default'} />}

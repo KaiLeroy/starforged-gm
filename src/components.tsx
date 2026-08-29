@@ -1163,6 +1163,8 @@ export function ChatLog({
   canUndo,
   onEdit,
   onRegenerate,
+  pendingChoice,
+  onChoose,
 }: {
   messages: DisplayMessage[];
   pendingEvents: DisplayMessage['events'];
@@ -1170,6 +1172,8 @@ export function ChatLog({
   canUndo?: boolean;
   onEdit?: () => void;
   onRegenerate?: () => void;
+  pendingChoice?: PendingChoice | null;
+  onChoose?: (text: string) => Promise<void>;
 }) {
   if (messages.length === 0 && !thinking) {
     return (
@@ -1220,15 +1224,25 @@ export function ChatLog({
           )}
         </div>
       ))}
-      {thinking && (
+      {/* A pending choice pauses the turn -- it and the "thinking" indicator are mutually
+       *  exclusive states, but the check is explicit here rather than assumed, since this
+       *  renders as part of the scrollable log itself now, not a separate overlay that could
+       *  never visually collide with the thinking bubble by construction. */}
+      {pendingChoice && onChoose ? (
         <div className="msg gm">
-          {pendingEvents.map((e, j) => (
-            <TxLine event={e} key={j} />
-          ))}
-          <div className="bubble" style={{ color: 'var(--text-dim)' }}>
-            …
-          </div>
+          <InlineChoice choice={pendingChoice} onChoose={onChoose} />
         </div>
+      ) : (
+        thinking && (
+          <div className="msg gm">
+            {pendingEvents.map((e, j) => (
+              <TxLine event={e} key={j} />
+            ))}
+            <div className="bubble" style={{ color: 'var(--text-dim)' }}>
+              …
+            </div>
+          </div>
+        )
       )}
     </div>
   );
@@ -1758,7 +1772,7 @@ export function NewCampaignModal({
  * Vow's miss recommit-or-forsake. Blocks the normal composer until answered, since resuming
  * requires a real response to resolve the specific tool call that's waiting on one.
  */
-export function ChoiceModal({ choice, onChoose }: { choice: PendingChoice; onChoose: (text: string) => Promise<void> }) {
+export function InlineChoice({ choice, onChoose }: { choice: PendingChoice; onChoose: (text: string) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [customText, setCustomText] = useState('');
 
@@ -1773,43 +1787,35 @@ export function ChoiceModal({ choice, onChoose }: { choice: PendingChoice; onCho
   };
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal" style={{ width: 440 }}>
-        <h2>{choice.prompt}</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, marginBottom: choice.allowCustom ? 16 : 4 }}>
-          {choice.options.map((opt, i) => (
-            <button
-              key={i}
-              className="icon-btn"
-              style={{ textAlign: 'left', padding: '8px 10px', borderColor: 'var(--accent-copper)', color: 'var(--text)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}
-              disabled={busy}
-              onClick={() => pick(opt.label)}
-            >
-              <span style={{ fontWeight: 'bold' }}>{opt.label}</span>
-              {opt.description && <span style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 'normal' }}>{opt.description}</span>}
-            </button>
-          ))}
-        </div>
-        {choice.allowCustom && (
-          <div className="field">
-            <label>Or answer in your own words</label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                value={customText}
-                onChange={(e) => setCustomText(e.target.value)}
-                disabled={busy}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') pick(customText);
-                }}
-                style={{ flex: 1 }}
-              />
-              <button className="icon-btn" disabled={busy || !customText.trim()} onClick={() => pick(customText)}>
-                {busy ? '…' : 'Submit'}
-              </button>
-            </div>
-          </div>
-        )}
+    <div className="inline-choice">
+      <p className="choice-prompt">{choice.prompt}</p>
+      <div className="choice-options">
+        {choice.options.map((opt, i) => (
+          <button key={i} className="icon-btn" disabled={busy} onClick={() => pick(opt.label)}>
+            <span className="choice-option-label">{opt.label}</span>
+            {opt.description && <span className="choice-option-description">{opt.description}</span>}
+          </button>
+        ))}
       </div>
+      {choice.allowCustom && (
+        <div className="field choice-custom">
+          <label>Or answer in your own words</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              disabled={busy}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') pick(customText);
+              }}
+              style={{ flex: 1 }}
+            />
+            <button className="icon-btn" disabled={busy || !customText.trim()} onClick={() => pick(customText)}>
+              {busy ? '…' : 'Submit'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
