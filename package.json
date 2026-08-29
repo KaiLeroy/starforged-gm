@@ -1,6 +1,6 @@
 {
   "name": "starforged-solo-gm",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A solo AI game master for Ironsworn: Starforged, powered by OpenRouter and grounded in the official Dataforged ruleset.",
   "main": "electron/main.cjs",
   "private": true,

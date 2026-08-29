@@ -68,7 +68,12 @@ const TOOL_SCHEMAS = [
         'its bonus into the adds you pass to roll_action_move next. "implicit" entries have no single named move ' +
         '-- they key off a broader fictional category ("a forceful move", "a move to craft or repair") that only ' +
         'you can judge fits the moment or not; the app surfaces them because it can\'t classify that on its own, ' +
-        'not because they\'re guaranteed to apply. An empty result for both means nothing from this character\'s ' +
+        'not because they\'re guaranteed to apply. Every entry includes the asset\'s own real asset_id -- if you go on to ' +
+        'call anything that needs it (set_asset_broken, adjust_asset_resource, discard_asset, and similar), use this ' +
+        'exact value, never a constructed one built from the asset\'s name (e.g. never invent "utility-bot" for an ' +
+        'asset actually named Utility Bot) -- a made-up id is rejected outright, and this is the reliable place to ' +
+        'get the real one rather than trying to recall it from whenever the asset was first acquired. An empty ' +
+        'result for both means nothing from this character\'s ' +
         'owned assets is relevant here -- that\'s a real answer, not a failure. Call it AGAIN after the roll, ' +
         'this time passing outcome and is_match -- for a hand-verified subset of abilities whose post-roll effect ' +
         'is genuinely unconditional (a fixed momentum grant, a legacy-track tick, an outcome-tier shift), the app ' +
@@ -374,7 +379,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset, or (more reliably, since that original call could be many turns in the past) the asset_id check_asset_bonuses returns for it right now -- never construct or guess one, always use a real, literal value one of those actually returned." },
           delta: { type: 'integer', description: 'Positive to gain, negative to spend/lose.' },
         },
         required: ['asset_id', 'delta'],
@@ -392,7 +397,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset, or (more reliably, since that original call could be many turns in the past) the asset_id check_asset_bonuses returns for it right now -- never construct or guess one, always use a real, literal value one of those actually returned." },
           current: { type: 'integer', description: 'New current value, if it changed.' },
           max: { type: 'integer', description: 'New max value, if it changed (e.g. an ability unlock that raises capacity).' },
         },
@@ -1206,7 +1211,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset, or (more reliably, since that original call could be many turns in the past) the asset_id check_asset_bonuses returns for it right now -- never construct or guess one, always use a real, literal value one of those actually returned." },
           broken: { type: 'boolean' },
         },
         required: ['asset_id', 'broken'],
@@ -1241,7 +1246,7 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." },
+          asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset, or (more reliably, since that original call could be many turns in the past) the asset_id check_asset_bonuses returns for it right now -- never construct or guess one, always use a real, literal value one of those actually returned." },
           condition: { type: 'string', enum: ['battered', 'cursed'] },
           marked: { type: 'boolean' },
         },
@@ -1290,7 +1295,7 @@ const TOOL_SCHEMAS = [
         "related, this can't be undone by spending experience.",
       parameters: {
         type: 'object',
-        properties: { asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset -- never construct or guess one, always use the literal value that call returned." } },
+        properties: { asset_id: { type: 'string', description: "The exact \"id\" field returned by buy_asset's or grant_asset's own result for this asset, or (more reliably, since that original call could be many turns in the past) the asset_id check_asset_bonuses returns for it right now -- never construct or guess one, always use a real, literal value one of those actually returned." } },
         required: ['asset_id'],
       },
     },

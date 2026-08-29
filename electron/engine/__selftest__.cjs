@@ -4305,6 +4305,26 @@ await check("reproduces the exact real-world scenario from the debug log directl
   assert.strictEqual(burned.outcome, 'strong_hit', 'burning momentum in this exact real scenario should produce a strong hit, not a smaller improvement');
 });
 
+console.log("A fourth real debug log surfaced the same underlying failure pattern as the first bug found this session (constructed IDs instead of real ones), now hitting a different tool: set_asset_broken was called with asset_id \"utility-bot\" for an owned Companion actually named Utility Bot, and correctly rejected since no such id exists. The earlier 27-parameter fix already told the model to use the real, engine-generated id rather than construct one -- but traced this instance to a genuine, separate contributing gap: check_asset_bonuses, the tool that surfaces which owned assets are relevant to a move, returned only the asset's name, never its real id, even though the id was sitting right there on the underlying data the whole time. A model correctly recognizing Utility Bot as relevant still had no real id in front of it at that moment, and had no choice but to reconstruct one from the name or recall it from whenever the asset was first acquired, possibly many turns back. Added asset_id directly to every entry check_asset_bonuses returns, and updated both its own description and every asset-referencing tool's own id parameter to point at this as the more reliable, freshest source. Also flagged, separately and with real uncertainty rather than false confidence, whether Take Decisive Action was even the right move for the turn in question -- the player's stated action (holstering a weapon, standing down) doesn't obviously match the move's own trigger (\"when you seize an objective in a fight\") -- a genuine judgment-call ambiguity, not something fixed here, since a defensible GM reading exists on both sides and it isn't a clear-cut engine-level bug the way the constructed id is.");
+await check("check_asset_bonuses now includes the real, engine-generated asset_id directly on every entry it returns -- both explicit and implicit -- reproducing and fixing the exact real-world case where a model had no real id available and constructed \"utility-bot\" for an asset actually named Utility Bot", async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  state.addAsset(cs, { id: 'realid123', name: 'Utility Bot', category: 'Companion' });
+  const r = await executeTool('check_asset_bonuses', { move_name: 'Take Decisive Action' }, cs);
+  assert.strictEqual(r.implicit.length, 1);
+  assert.strictEqual(r.implicit[0].asset_id, 'realid123', 'the real id must be surfaced directly, not left for the model to guess or reconstruct');
+  const setBrokenResult = await executeTool('set_asset_broken', { asset_id: r.implicit[0].asset_id, broken: true }, cs);
+  assert.ok(!setBrokenResult.error, 'using the id check_asset_bonuses actually returns should succeed, unlike the constructed one that failed in real play');
+  const badResult = await executeTool('set_asset_broken', { asset_id: 'utility-bot', broken: true }, cs);
+  assert.ok(badResult.error, 'the exact constructed id observed in real play should still correctly fail');
+});
+await check("getAssetAbilitiesForMove (the underlying function check_asset_bonuses calls) surfaces the real id for explicit matches too, not just implicit ones", async () => {
+  const owned = [{ id: 'hc-real-id', name: 'Heavy Cannons', abilities_unlocked: [1] }];
+  const result = data.getAssetAbilitiesForMove(owned, 'Strike');
+  assert.strictEqual(result.explicit.length, 1);
+  assert.strictEqual(result.explicit[0].asset_id, 'hc-real-id');
+});
+
 console.log(`\n${passed}/${total} checks passed.`);
 if (process.exitCode) {
   console.error('SOME CHECKS FAILED -- see above.');

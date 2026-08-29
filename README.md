@@ -1310,6 +1310,49 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## A fourth real debug log: the same constructed-ID pattern, tracked to a genuine gap this time -- not just a model ignoring guidance
+
+A fourth uploaded debug log, and this one's failure mode matched the
+very first real bug found this session: set_asset_broken was called
+with asset_id "utility-bot" for an owned Companion actually named
+Utility Bot, correctly rejected since no such id exists.
+
+**The earlier 27-parameter fix already told the model to use the real
+id, not construct one -- so this needed tracing to an actual, separate
+contributing gap, not just chalked up to the model ignoring guidance
+again.** Found one: check_asset_bonuses, the tool that tells the model
+which owned assets are relevant to a move, returned only the asset's
+name -- never its real id, even though that id was sitting right there
+on the underlying data the whole time. A model correctly recognizing
+Utility Bot as relevant to the move still had no real id in front of
+it at that exact moment, and had nothing to work from except
+reconstructing one from the name or trying to recall it from whenever
+the asset was first bought, possibly many turns back in the
+conversation.
+
+**Fixed at the source.** asset_id now rides directly on every entry
+check_asset_bonuses returns, both explicit and implicit. Updated the
+tool's own description and every asset-referencing tool's id
+parameter (set_asset_broken, adjust_asset_resource, set_asset_resource,
+set_vehicle_condition, discard_asset) to point at this as the more
+reliable, freshest source, rather than only the original acquisition
+call.
+
+**One more thing worth naming honestly rather than silently fixing or
+silently ignoring**: whether Take Decisive Action was even the right
+move for that turn. The player's stated action was holstering a
+weapon and standing down -- which doesn't obviously match the move's
+own trigger, "when you seize an objective in a fight." A defensible
+GM reading exists on both sides of this (standing down as its own
+kind of decisive choice vs. a genuine mismatch), so it's flagged as a
+real, open question rather than treated as a clear-cut engine bug the
+way the constructed id was.
+
+2 new tests, including one that reproduces the exact real-world
+failure -- the literal string "utility-bot" -- and confirms it still
+correctly fails while the real, now-surfaced id succeeds. Full
+regression, syntax, types, and playtest all clean.
+
 ## UI adjustments (bigger character sheet font, narrower story area), and a third real debug log with the same underlying pattern
 
 Two requests handled this pass: real UI adjustments, and a third

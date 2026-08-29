@@ -166,7 +166,7 @@ function getAssetAbilitiesForMove(ownedAssets, moveName) {
     const unlocked = new Set(owned.abilities_unlocked || [1]);
     for (const ability of def.abilities) {
       if (!unlocked.has(ability.level)) continue;
-      const entry = { asset: owned.name, level: ability.level, trigger: ability.trigger, effect: ability.effect };
+      const entry = { asset: owned.name, asset_id: owned.id, level: ability.level, trigger: ability.trigger, effect: ability.effect };
       if (ability.alters.length === 0) {
         implicit.push(entry);
       } else if (ability.alters.some((m) => normalize(m) === needle)) {
