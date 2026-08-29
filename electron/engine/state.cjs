@@ -490,6 +490,17 @@ const ASSET_RESOURCES = {
 function setAssetBroken(state, assetId, broken) {
   const asset = state.character.assets.find((a) => a.id === assetId);
   if (!asset) throw new Error(`Character doesn't have an asset with id "${assetId}".`);
+  // "Broken" is specifically a Module mechanic (Withstand Damage's own miss consequence marks a
+  // ship module broken, not a companion or anything else) -- enforced here, not left to the AI's
+  // own judgment, after real play showed an attempt to mark a Companion (Utility Bot) broken this
+  // way. Companions have their own, separate mechanic for this instead: reduced health via
+  // companion_takes_a_hit, potentially permanent loss on a miss with a match -- never "broken."
+  if (asset.category !== 'Module') {
+    throw new Error(
+      `"${asset.name}" is a ${asset.category || 'non-Module'} asset, not a Module -- "broken" only applies to Modules (Withstand Damage's own miss consequence). ` +
+        `For a Companion taking harm, use companion_takes_a_hit instead, which reduces its health rather than marking it broken.`
+    );
+  }
   asset.broken = Boolean(broken);
   return { assetId, name: asset.name, broken: asset.broken };
 }

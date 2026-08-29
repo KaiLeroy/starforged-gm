@@ -63,7 +63,16 @@ function rollBonusChallengeDice(actionScore, originalChallengeDice, extraDieCoun
     const dice = [allDice[i], allDice[j]];
     return { dice, ...determineOutcome(actionScore, dice) };
   });
-  return { extra_dice: extraDice, all_dice: allDice, forced_match: false, possible_pairings };
+  return {
+    extra_dice: extraDice,
+    all_dice: allDice,
+    forced_match: false,
+    possible_pairings,
+    next_step:
+      'REQUIRED: call present_choice now, one option per entry in possible_pairings above, before narrating or ' +
+      'resolving any outcome -- this is a genuine choice for the player to make, not something to pick or assume ' +
+      'on their behalf. Do not treat any single pairing as settled until they actually answer.',
+  };
 }
 
 /** Missile Array, Demolitionist, and Lore Hunter all grant "reroll any challenge dice" under

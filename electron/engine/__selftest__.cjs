@@ -4309,20 +4309,72 @@ console.log("A fourth real debug log surfaced the same underlying failure patter
 await check("check_asset_bonuses now includes the real, engine-generated asset_id directly on every entry it returns -- both explicit and implicit -- reproducing and fixing the exact real-world case where a model had no real id available and constructed \"utility-bot\" for an asset actually named Utility Bot", async () => {
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
-  state.addAsset(cs, { id: 'realid123', name: 'Utility Bot', category: 'Companion' });
-  const r = await executeTool('check_asset_bonuses', { move_name: 'Take Decisive Action' }, cs);
-  assert.strictEqual(r.implicit.length, 1);
-  assert.strictEqual(r.implicit[0].asset_id, 'realid123', 'the real id must be surfaced directly, not left for the model to guess or reconstruct');
-  const setBrokenResult = await executeTool('set_asset_broken', { asset_id: r.implicit[0].asset_id, broken: true }, cs);
+  state.addAsset(cs, { id: 'realid123', name: 'Shields', category: 'Module' });
+  const r = await executeTool('check_asset_bonuses', { move_name: 'Withstand Damage' }, cs);
+  const shieldsEntry = [...r.explicit, ...r.implicit].find((e) => e.asset === 'Shields');
+  assert.ok(shieldsEntry, 'Shields should be surfaced for Withstand Damage');
+  assert.strictEqual(shieldsEntry.asset_id, 'realid123', 'the real id must be surfaced directly, not left for the model to guess or reconstruct');
+  const setBrokenResult = await executeTool('set_asset_broken', { asset_id: shieldsEntry.asset_id, broken: true }, cs);
   assert.ok(!setBrokenResult.error, 'using the id check_asset_bonuses actually returns should succeed, unlike the constructed one that failed in real play');
   const badResult = await executeTool('set_asset_broken', { asset_id: 'utility-bot', broken: true }, cs);
   assert.ok(badResult.error, 'the exact constructed id observed in real play should still correctly fail');
+});
+await check("set_asset_broken now correctly rejects a Companion asset outright (a real bug caught in play: a made-up id for Utility Bot masked the fact that the engine would have allowed marking a Companion \"broken\" at all, which isn't a real mechanic -- broken is Module-only, per Withstand Damage's own text), and points toward companion_takes_a_hit as the real, correct alternative", async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  state.addAsset(cs, { id: 'companion-real-id', name: 'Utility Bot', category: 'Companion' });
+  const result = await executeTool('set_asset_broken', { asset_id: 'companion-real-id', broken: true }, cs);
+  assert.ok(result.error, 'marking a Companion broken should be rejected, not silently allowed');
+  assert.ok(result.error.includes('not a Module'), 'the error should explain why, not just fail generically');
+  assert.ok(result.error.includes('companion_takes_a_hit'), 'the error should point toward the actual correct mechanic');
+  state.addAsset(cs, { id: 'module-real-id', name: 'Shields', category: 'Module' });
+  const okResult = await executeTool('set_asset_broken', { asset_id: 'module-real-id', broken: true }, cs);
+  assert.ok(!okResult.error, 'an actual Module asset should still work correctly');
 });
 await check("getAssetAbilitiesForMove (the underlying function check_asset_bonuses calls) surfaces the real id for explicit matches too, not just implicit ones", async () => {
   const owned = [{ id: 'hc-real-id', name: 'Heavy Cannons', abilities_unlocked: [1] }];
   const result = data.getAssetAbilitiesForMove(owned, 'Strike');
   assert.strictEqual(result.explicit.length, 1);
   assert.strictEqual(result.explicit[0].asset_id, 'hc-real-id');
+});
+
+console.log("A large, multi-part bug report from real play, investigated item by item against actual data rather than assumed. Two confirmed, real, severe bugs and two mechanics that checked out as actually correct despite looking wrong at a glance -- worth distinguishing rather than treating every reported symptom as a bug. First real bug: roll_bonus_challenge_dice correctly computed three possible pairings with no forced match, and the very next event in the log was just the final narration -- present_choice was never called at all, and the AI silently narrated a plausible weak-hit outcome without ever letting the player choose, exactly the kind of decide-on-their-behalf failure explicitly warned against elsewhere. The same underlying pattern (correct data reaching the model, but the required present_choice follow-through silently skipped) had already shown up once before with momentum_burn's Gain Ground bug -- both now carry a direct, imperative next_step field in their own result telling the model exactly what's required before narrating anything, rather than relying solely on prompt-level instructions further away in context. Second real bug, more structural: set_asset_broken was being applied to a Companion (Utility Bot) at all -- wrong mechanic entirely, not just a wrong id. The engine itself had no restriction stopping this; it would have silently succeeded had the id merely been correct. Companions have their own, separate mechanic for taking harm (companion_takes_a_hit, reducing health) -- broken is specifically a Module concept, Withstand Damage's own miss consequence. Added a real engine-level guard rejecting non-Module assets outright, with an error pointing at the correct alternative, plus a blanket system-prompt rule stating this directly. Two reported items checked out as already correct rather than bugs: Develop Your Relationship's two observed calls both correctly used its pre-bond, no-roll branch, since the connection in question never actually reached bonded status (that only happens via a successful Forge a Bond, not merely filling the connection's progress track) -- confirmed directly against real state, not assumed.");
+await check("roll_bonus_challenge_dice's next_step field is only present when a real, unresolved choice actually exists (forced_match false), directly reproducing the real-world case where the AI silently narrated an outcome without ever presenting one -- and is correctly absent when a match forces a single, already-final outcome with nothing left to choose", async () => {
+  const noMatchResult = dice.rollBonusChallengeDice(4, [1, 4], 1);
+  if (!noMatchResult.forced_match) {
+    assert.ok(noMatchResult.next_step, 'a genuine unresolved choice must carry an explicit next_step directive');
+    assert.ok(noMatchResult.next_step.includes('REQUIRED: call present_choice'));
+  }
+  let matchCase = null;
+  for (let i = 0; i < 500 && !matchCase; i++) {
+    const r = dice.rollBonusChallengeDice(4, [1, 4], 1);
+    if (r.forced_match) matchCase = r;
+  }
+  assert.ok(matchCase, 'a forced match should occur within 500 attempts');
+  assert.strictEqual(matchCase.next_step, undefined, 'a forced match has nothing left to choose, so no next_step should be present');
+});
+await check("roll_action_move's momentum_burn field carries the same kind of explicit next_step directive whenever a genuine burn is available, mirroring the fix applied to roll_bonus_challenge_dice for the same underlying failure pattern", async () => {
+  let found = null;
+  for (let i = 0; i < 100 && !found; i++) {
+    const cs = state.newCampaignState();
+    cs.character.name = 'Test';
+    cs.character.stats.iron = 1;
+    cs.character.meters.momentum = 6;
+    const r = await executeTool('roll_action_move', { move_name: 'Gain Ground', stat: 'iron', stat_value: 1 }, cs);
+    if (r.momentum_burn.available) found = r.momentum_burn;
+  }
+  assert.ok(found, 'an available burn should occur within 100 attempts given these odds');
+  assert.ok(found.next_step.includes('REQUIRED: call present_choice'));
+});
+await check("set_asset_broken now correctly rejects a Companion outright rather than silently allowing 'broken' to be applied to a category it was never meant for -- a real bug caught in play where a wrong id masked the deeper fact that the engine had no restriction here at all -- and the rejection explicitly names companion_takes_a_hit as the real, correct mechanic", async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  state.addAsset(cs, { id: 'ub-real-id', name: 'Utility Bot', category: 'Companion' });
+  assert.throws(() => state.setAssetBroken(cs, 'ub-real-id', true), /not a Module/);
+  assert.throws(() => state.setAssetBroken(cs, 'ub-real-id', true), /companion_takes_a_hit/);
+  state.addAsset(cs, { id: 'shields-real-id', name: 'Shields', category: 'Module' });
+  const r = state.setAssetBroken(cs, 'shields-real-id', true);
+  assert.strictEqual(r.broken, true, 'an actual Module should still be markable as broken');
 });
 
 console.log(`\n${passed}/${total} checks passed.`);

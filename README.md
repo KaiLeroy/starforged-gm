@@ -1310,6 +1310,56 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## A large, multi-part bug report from real play -- two confirmed real bugs, and two mechanics that turned out to already be correct
+
+A dense, multi-item report from actual play, investigated claim by
+claim against real data rather than assumed true or false from the
+symptoms alone. Two confirmed, real, severe bugs; two things that
+looked wrong but checked out as already correct.
+
+**Real bug one: a choice silently skipped, not just miscalculated.**
+roll_bonus_challenge_dice correctly computed three possible pairings
+with no forced match -- and the very next event in the log was the
+final narration. present_choice was never called at all. The AI
+silently narrated a plausible weak-hit outcome without ever letting
+the player choose, deciding on their behalf exactly the way existing
+guidance elsewhere explicitly warns against. This is the same
+underlying pattern already seen once before, in momentum_burn's Gain
+Ground bug: correct data reaches the model, and the required
+present_choice follow-through gets silently skipped anyway. Both
+fields now carry a direct, imperative next_step instruction inside
+their own result -- fresh, hard-to-miss context right at the point of
+decision, rather than relying solely on prompt-level instructions
+further away.
+
+**Real bug two, and a more structural one: set_asset_broken was being
+applied to a Companion at all.** Not just the wrong id (already fixed
+last pass) -- the wrong mechanic entirely. The engine itself had no
+restriction stopping this; it would have silently succeeded had the
+id merely been correct, letting a Companion be marked "broken" when
+that concept doesn't apply to it -- broken is specifically a Module
+thing, Withstand Damage's own miss consequence. Companions have their
+own, completely separate mechanic for taking harm
+(companion_takes_a_hit, which reduces health). Added a real,
+enforced engine-level guard rejecting non-Module assets outright, with
+an error naming the actual correct alternative, plus an explicit
+system-prompt rule stating the underlying principle directly: a
+Companion only ever loses health through companion_takes_a_hit, never
+any other mechanism, even under a generic prompt.
+
+**Two reported items checked out as already correct, not bugs.**
+Develop Your Relationship's two observed calls both correctly used
+its unusual pre-bond, no-roll branch -- the connection in question
+never actually reached bonded status, since that only happens via a
+successful Forge a Bond roll, not simply filling the connection's own
+progress track. Confirmed directly against the real game state at
+each call, not assumed from the move's name alone.
+
+3 new tests. Full regression, syntax, types, and playtest all clean.
+Two items from this same report -- vow rank-change mechanics, and the
+Custom Asset feature's future -- are still open and being worked on
+separately.
+
 ## A fourth real debug log: the same constructed-ID pattern, tracked to a genuine gap this time -- not just a model ignoring guidance
 
 A fourth uploaded debug log, and this one's failure mode matched the

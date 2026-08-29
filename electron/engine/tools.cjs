@@ -1204,9 +1204,13 @@ const TOOL_SCHEMAS = [
     function: {
       name: 'set_asset_broken',
       description:
-        'Marks (or clears) an owned asset -- specifically a module -- as broken, per Withstand Damage\'s own miss ' +
+        'Marks (or clears) an owned asset -- specifically a Module -- as broken, per Withstand Damage\'s own miss ' +
         'consequence ("mark a module as broken... a broken module cannot be used until you successfully Repair ' +
-        'it"). A real mechanical restriction: while broken is true, do not apply that asset\'s abilities to any ' +
+        'it"). Rejected outright for anything that isn\'t actually a Module -- "broken" isn\'t a real mechanic for ' +
+        'Companions or other asset categories, even under a generic prompt like Pay the Price\'s "your equipment or ' +
+        'vehicle malfunctions" -- for a Companion taking harm, use companion_takes_a_hit instead, which reduces its ' +
+        'health rather than marking it broken. A real mechanical restriction once actually applied to a Module: ' +
+        'while broken is true, do not apply that asset\'s abilities to any ' +
         'roll or outcome. Call again with broken: false once Repair (or Repair\'s repair-points menu) fixes it.',
       parameters: {
         type: 'object',
@@ -1506,7 +1510,14 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
       let momentumBurn = { available: false };
       if ((result.outcome === 'weak_hit' || result.outcome === 'miss') && result.momentum > result.actionScore) {
         const preview = dice.determineOutcome(result.momentum, result.challengeDice);
-        momentumBurn = { available: true, would_produce_outcome: preview.outcome };
+        momentumBurn = {
+          available: true,
+          would_produce_outcome: preview.outcome,
+          next_step:
+            'REQUIRED: call present_choice now, offering to burn momentum for this improved outcome or keep the ' +
+            'result as rolled -- a genuine choice for the player to make, not something to decide on their behalf. ' +
+            "Don't narrate or resolve this roll's outcome until they've actually answered.",
+        };
       }
       return {
         move: {
