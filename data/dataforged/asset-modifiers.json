@@ -1,0 +1,2713 @@
+[
+  {
+    "name": "Starship",
+    "category": "Command Vehicle",
+    "meta": "· Integrity 0-5 {Battered, Cursed} · attaches unlimited Modules",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Advance"
+        ],
+        "trigger": "always",
+        "effect": "may spend XP to equip Module assets"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Finish an Expedition"
+        ],
+        "trigger": "in ship, dangerous+",
+        "effect": "hit: mark 1 tick bonds legacy (self + allies)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Withstand Damage"
+        ],
+        "trigger": "to ship",
+        "effect": "may roll +heart instead of +integrity; weak/miss also Endure Stress (-1)"
+      }
+    ]
+  },
+  {
+    "name": "Engine Upgrade",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "in vehicle, +edge",
+        "effect": "strong hit: +1 momentum (+2 instead if action die = 6)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "choose before rolling",
+        "effect": "Maneuver: +1, +1 momentum on strong hit / Boost: +2 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "desperate move to pursue/escape/get in range",
+        "effect": "after rolling, may reroll all + upgrade weak→strong hit; then Withstand Damage (-2)"
+      }
+    ]
+  },
+  {
+    "name": "Expanded Hold",
+    "category": "Module",
+    "meta": "· Cargo 0-3 {Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "always",
+        "effect": "convert +supply gained to +cargo; may add +cargo to +supply moves; Sacrifice Resources may spend cargo instead"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "weak hit/miss on barter/negotiate, ≥1 cargo",
+        "effect": "may reroll all + add +cargo, then suffer -1 cargo"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "outrun a threat, ≥1 cargo",
+        "effect": "may drop cargo: suffer -cargo, add that amount to roll, +2 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Grappler",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "ready the grappler (~1 min)",
+        "effect": "roll +integrity or +wits: strong=charged; weak=Lose Momentum(-1); miss=Withstand Damage(-2). Firing a charged grappler to attack/overcome = automatic strong hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Ready Grappler"
+        ],
+        "trigger": "strong hit while readying",
+        "effect": "may Sacrifice Resources(-1) to overcharge; firing overcharged: +2 momentum, +mark progress if in a fight"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Take Decisive Action"
+        ],
+        "trigger": "by firing the grappler",
+        "effect": "may reroll one challenge die"
+      }
+    ]
+  },
+  {
+    "name": "Heavy Cannons",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Strike"
+        ],
+        "trigger": "aim cannons, choose one",
+        "effect": "Strafing run: +1, +1 momentum on hit / Focus fire: mark progress on hit, Lose Momentum(-1)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Clash"
+        ],
+        "trigger": "once/fight, all-or-nothing exchange",
+        "effect": "+1; weak hit counts as strong hit; mark progress on hit; miss: suffer a dire outcome"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Compel",
+          "Enter the Fray",
+          "Gain Ground"
+        ],
+        "trigger": "cannons as a threat over comms",
+        "effect": "+1, +1 momentum on hit (+1 more on strong hit w/ match)"
+      }
+    ]
+  },
+  {
+    "name": "Internal Refit",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "first leg, dangerous+",
+        "effect": "reroll all dice; hit: +2 momentum or +1 spirit"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "Sacrifice Resources drops supply to 0",
+        "effect": "first roll +integrity: strong=+1 supply, else mark unprepared"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "oppose an invader aboard",
+        "effect": "reroll all dice; strong hit: +momentum=integrity (+mark progress w/ match)"
+      }
+    ]
+  },
+  {
+    "name": "Medbay",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Heal"
+        ],
+        "trigger": "using the medbay",
+        "effect": "may reroll action die if it's less than ship integrity"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Heal"
+        ],
+        "trigger": "permanently-harmed patient reaches medbay within ~1hr",
+        "effect": "strong hit: also clears the impact"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Face Danger",
+          "Gather Information"
+        ],
+        "trigger": "risky medical procedure / autopsy",
+        "effect": "reroll all dice; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Missile Array",
+    "category": "Module",
+    "meta": "· Ammo 0-5 {Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Strike",
+          "Clash"
+        ],
+        "trigger": "missile attack",
+        "effect": "suffer -1 ammo; mark progress on hit"
+      },
+      {
+        "level": 1,
+        "alters": [
+          "Resupply"
+        ],
+        "trigger": "where missiles replenish",
+        "effect": "may exchange earned +supply for +ammo"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gain Ground"
+        ],
+        "trigger": "lock missile on target, ≥1 ammo",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Take Decisive Action"
+        ],
+        "trigger": "unleash all missiles, ≥3 ammo",
+        "effect": "roll action die vs ammo; if ≤ammo, may reroll challenge dice; ammo→0"
+      }
+    ]
+  },
+  {
+    "name": "Overseer",
+    "category": "Module",
+    "meta": "{Broken} (named AI)",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Secure an Advantage",
+          "Gain Ground"
+        ],
+        "trigger": "talk through situation with AI",
+        "effect": "may roll +integrity; +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Withstand Damage"
+        ],
+        "trigger": "on the miss table",
+        "effect": "roll twice, choose either result"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Face Danger"
+        ],
+        "trigger": "hand off piloting to AI in emergency / remote summon",
+        "effect": "may roll +integrity; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Reinforced Hull",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Withstand Damage"
+        ],
+        "trigger": "to this vehicle",
+        "effect": "+1; +1 momentum on strong hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "vs a foe who knows your reputation",
+        "effect": "+momentum=integrity on strong hit (also +1 momentum on arrival where reputation matters, no roll)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "React Under Fire"
+        ],
+        "trigger": "let the hull take the hit",
+        "effect": "+1, +1 momentum on hit (+1 more w/ match); miss: mark this module Broken"
+      }
+    ]
+  },
+  {
+    "name": "Research Lab",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Secure an Advantage",
+          "Gather Information"
+        ],
+        "trigger": "analysis/experimentation in lab",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Face Danger"
+        ],
+        "trigger": "isolate/secure hazardous specimen",
+        "effect": "reroll all dice"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Swear an Iron Vow",
+          "Face Danger",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "long-term research project, extreme+",
+        "effect": "vow: reroll all dice; obtaining samples marks progress + 2 momentum (no roll); devoted lab time = Face Danger +1, hit marks progress (2x w/ match); fulfilling vow marks +1 discoveries legacy box on hit"
+      }
+    ]
+  },
+  {
+    "name": "Sensor Array",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "in vehicle, +wits",
+        "effect": "may reroll one challenge die"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Secure an Advantage",
+          "Gather Information"
+        ],
+        "trigger": "scan surroundings, choose one",
+        "effect": "Manual: +1 / Automated: action die = integrity instead of rolled; +1 momentum on hit either way"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Enter the Fray",
+          "Face Danger"
+        ],
+        "trigger": "vs ambush / detect hidden threat",
+        "effect": "may roll +integrity; if so, reroll all + 1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Shields",
+    "category": "Module",
+    "meta": "· Shields 0-4 {Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "raise shields",
+        "effect": "roll +integrity or +wits: strong→shields=4, weak→3, miss→2 & Lose Momentum(-1); Withstand Damage then ignores damage up to shields value, -1 shield per use"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "React Under Fire"
+        ],
+        "trigger": "let shields take the blow",
+        "effect": "roll +shields; +2 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "in vehicle",
+        "effect": "strong hit: may set shields to 3 without rolling; if so +1 momentum"
+      }
+    ]
+  },
+  {
+    "name": "Stealth Tech",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "avoid detection / ambush unaware foe",
+        "effect": "+1 always; ambush strong hit also marks progress"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "travel stealthily, +shadow",
+        "effect": "may reroll action die"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Strike"
+        ],
+        "trigger": "strike from hiding, +shadow, choose before rolling",
+        "effect": "Strike true: reroll all / Strike hard: mark progress on hit; strong hit w/ match: +2 momentum + next-move +1"
+      }
+    ]
+  },
+  {
+    "name": "Vehicle Bay",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Repair"
+        ],
+        "trigger": "repair a battered support vehicle",
+        "effect": "costs 1 repair point instead of 2 (also: -1 XP to buy/upgrade support vehicles, no roll)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Withstand Damage"
+        ],
+        "trigger": "support vehicle destroyed, wreckage retrievable",
+        "effect": "Ask the Oracle 50/50: yes = 1 XP restores it with prior marked abilities"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "launch/land on command vehicle in peril",
+        "effect": "reroll all dice; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Workshop",
+    "category": "Module",
+    "meta": "{Broken}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Repair"
+        ],
+        "trigger": "in the field, with workshop",
+        "effect": "+1"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "craft/modify/deactivate/disassemble in workshop",
+        "effect": "may reroll action die if less than ship integrity"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Swear an Iron Vow",
+          "Face Danger",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "long-term engineering project, extreme+",
+        "effect": "same shape as Research Lab L3, engineering-flavored"
+      }
+    ]
+  },
+  {
+    "name": "Exosuit",
+    "category": "Support Vehicle",
+    "meta": "· Integrity 0-6",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "forceful/damaging/resistant move in exosuit",
+        "effect": "after rolling, may set action die = integrity; if so Lose Momentum(-1)"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "burn fuel to overcome critical obstacle",
+        "effect": "after rolling, may reroll all; if so Sacrifice Resources(-1)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Withstand Damage"
+        ],
+        "trigger": "to exosuit",
+        "effect": "may reroll one challenge die"
+      }
+    ]
+  },
+  {
+    "name": "Hoverbike",
+    "category": "Support Vehicle",
+    "meta": "· Integrity 0-3",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "on hoverbike, +edge",
+        "effect": "+1 momentum on hit; strong hit w/ match also marks progress"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "afterburner risky maneuver",
+        "effect": "may add +integrity, +2 momentum on strong hit; if so, weak hit counts as miss"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "burn momentum while maneuvering",
+        "effect": "roll action die: 5-6 means momentum does NOT reset"
+      }
+    ]
+  },
+  {
+    "name": "Rover",
+    "category": "Support Vehicle",
+    "meta": "· Integrity 0-5",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition",
+          "Set a Course",
+          "Finish an Expedition"
+        ],
+        "trigger": "in rover",
+        "effect": "+1 to first two; may reroll one challenge die on the third"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "always",
+        "effect": "may equip one Module at no extra XP; Withstand Damage can break/destroy it like a command vehicle; reconfiguring costs 1 XP, keeps same marked-ability count on the new module"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Face Danger",
+          "React Under Fire"
+        ],
+        "trigger": "take a hit / crash through obstacle",
+        "effect": "may roll +integrity; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Service Pod",
+    "category": "Support Vehicle",
+    "meta": "· Integrity 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "manipulator arms, delicate/forceful task",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Face Danger",
+          "Gain Ground",
+          "React Under Fire"
+        ],
+        "trigger": "maneuver pod through hazard, choose approach",
+        "effect": "Careful: +2, Lose Momentum(-1) / Reckless: +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "push pod to the limit",
+        "effect": "may take automatic strong hit; if so Withstand Damage(-2)"
+      }
+    ]
+  },
+  {
+    "name": "Shuttle",
+    "category": "Support Vehicle",
+    "meta": "· Integrity 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "arrive at a location (not command vehicle)",
+        "effect": "+1 momentum, self + allies, no roll"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Face Danger",
+          "React Under Fire"
+        ],
+        "trigger": "navigate hazardous skies/obstacles/evade",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Withstand Damage"
+        ],
+        "trigger": "to shuttle",
+        "effect": "+1 (also: sealed vs pressure/underwater capable, no roll)"
+      }
+    ]
+  },
+  {
+    "name": "Skiff",
+    "category": "Support Vehicle",
+    "meta": "· Integrity 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition",
+          "Set a Course"
+        ],
+        "trigger": "rely on durability",
+        "effect": "may roll +integrity; +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Strike",
+          "Clash"
+        ],
+        "trigger": "fire skiff's cannon",
+        "effect": "roll +integrity, +1 momentum on hit (+mark progress w/ match)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Check Your Gear"
+        ],
+        "trigger": "always",
+        "effect": "+1, +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Snub Fighter",
+    "category": "Support Vehicle",
+    "meta": "· Integrity 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "in snub fighter",
+        "effect": "may roll +integrity; +2 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Strike",
+          "Clash"
+        ],
+        "trigger": "in snub fighter",
+        "effect": "+1 (+mark progress w/ match)"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "personally defeat a notable foe",
+        "effect": "tally victories; every 5 tallied = +2 ticks quests legacy"
+      }
+    ]
+  },
+  {
+    "name": "Ace",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Face Danger",
+          "React Under Fire"
+        ],
+        "trigger": "guide vehicle through hazard/out of harm's way",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gain Ground"
+        ],
+        "trigger": "maneuver vehicle vs foe",
+        "effect": "+1; strong hit w/ action die 4-6: preset a later Strike's die (persists until failed strong hit or reposition)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Endure Stress"
+        ],
+        "trigger": "piloting a vehicle",
+        "effect": "may roll +integrity; +1 momentum on strong hit"
+      }
+    ]
+  },
+  {
+    "name": "Archer",
+    "category": "Path",
+    "meta": "· Ammo 0-6 `<REQ: wield a power bow>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "always",
+        "effect": "Strike/Clash may add +1 or +2, suffer that much -ammo; replenish via +wits roll: strong=+6 ammo, weak=+4 & Sacrifice Resources(-1), miss=Sacrifice Resources further"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "volley of bow shots",
+        "effect": "may roll +ammo, suffer -1 ammo; hit: mark progress"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "specialized projectile (zipline/explosive/EM disrupter)",
+        "effect": "suffer -1 ammo; may preset action die to 5; hit: +1 momentum"
+      }
+    ]
+  },
+  {
+    "name": "Armored",
+    "category": "Path",
+    "meta": "`<REQ: wear personal armor>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Face Danger",
+          "React Under Fire",
+          "Clash"
+        ],
+        "trigger": "trust armor vs physical attack",
+        "effect": "may preset action die to 4; strong hit w/ match: +2 momentum"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "always (upgrade)",
+        "effect": "as L1 but preset to 5 instead of 4"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Endure Harm"
+        ],
+        "trigger": "let armor take the hit",
+        "effect": "roll action die: 4+ ignores harm; 1-3 ignores harm but armor marked Broken (Repair, 5 points, to fix)"
+      }
+    ]
+  },
+  {
+    "name": "Artist",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "craft/present/leave an artistic work",
+        "effect": "may reroll action die if less than spirit; strong hit: +1 momentum or +1 spirit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gather Information",
+          "Secure an Advantage"
+        ],
+        "trigger": "study aesthetics of a being/culture",
+        "effect": "+2"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "create a significant public memorial work",
+        "effect": "roll +best-fit stat; strong: mark 2 ticks bonds legacy; weak: short-lived impact"
+      }
+    ]
+  },
+  {
+    "name": "Augmented",
+    "category": "Path",
+    "meta": "{Broken (Augment 1)}",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "move directly aided by augment",
+        "effect": "+1; strong hit w/ match: +2 momentum"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "always (second augment)",
+        "effect": "functions as L1; effects of the two augments don't stack"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Endure Harm",
+          "Face Death"
+        ],
+        "trigger": "always",
+        "effect": "may mark an augment Broken instead of suffering the harm/death check; repair as normal"
+      }
+    ]
+  },
+  {
+    "name": "Bannersworn",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow"
+        ],
+        "trigger": "in service to bound clan/faction/creed",
+        "effect": "reroll all dice; hit: mark 1 tick bonds legacy"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Sojourn",
+          "Forge a Bond"
+        ],
+        "trigger": "meet/bond with someone of your ideology",
+        "effect": "Sojourn strong-hit-w/-match may introduce them; Make a Connection hit marks 1 tick bonds legacy; Forge a Bond with them gets an improved legacy reward"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "progress move in service to ideology",
+        "effect": "may reroll one challenge die; strong hit w/ match: mark 1 tick bonds legacy"
+      }
+    ]
+  },
+  {
+    "name": "Blademaster",
+    "category": "Path",
+    "meta": "`<REQ: wield a bladed weapon>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Clash",
+          "Strike"
+        ],
+        "trigger": "bladed weapon, close quarters",
+        "effect": "+1; strong hit w/ match: mark progress"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gain Ground"
+        ],
+        "trigger": "close quarters vs foe, choose approach",
+        "effect": "Charge: roll +heart, mark progress on hit / Evade: roll +edge, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Swear an Iron Vow"
+        ],
+        "trigger": "bind promise to named iconic blade",
+        "effect": "+1; hit fills a box; using the blade and missing lets you clear that box to reroll all dice"
+      }
+    ]
+  },
+  {
+    "name": "Bounty Hunter",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "bounty contract",
+        "effect": "vow +1, strong hit marks progress; fulfilling raises the legacy reward one rank"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gather Information"
+        ],
+        "trigger": "related to a bounty",
+        "effect": "+1; on a match, reveals a twist — choose to forge ahead (mark progress, +2 momentum if strong+match) or pivot"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Take Decisive Action"
+        ],
+        "trigger": "vs bounty target/agents",
+        "effect": "may reroll one challenge die"
+      }
+    ]
+  },
+  {
+    "name": "Brawler",
+    "category": "Path",
+    "meta": "`<REQ: fight unarmed or close-quarters weapon>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Gain Ground"
+        ],
+        "trigger": "disarm/trip/shove/grapple/stun",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Clash"
+        ],
+        "trigger": "close quarters, draw on momentum",
+        "effect": "Lose Momentum(-2), choose before rolling: Aggressive (weak→strong) / Defensive (miss→weak)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "already in close quarters",
+        "effect": "hit marks progress; strong hit w/ match: +2 momentum more"
+      }
+    ]
+  },
+  {
+    "name": "Courier",
+    "category": "Path",
+    "meta": "· Safety 0-5",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow",
+          "Undertake an Expedition",
+          "Set a Course"
+        ],
+        "trigger": "transport/protect something precious",
+        "effect": "vow sets safety to 5; weak/miss on the other two may cost -1 safety (-2 on miss w/ match) instead of the normal cost"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Fulfill Your Vow"
+        ],
+        "trigger": "courier mission to an unbonded connection",
+        "effect": "mark progress twice on the relationship"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Sojourn"
+        ],
+        "trigger": "during a courier mission",
+        "effect": "may roll +safety; strong hit: +1 safety or +1 momentum"
+      }
+    ]
+  },
+  {
+    "name": "Demolitionist",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "attack/destroy/sabotage via explosive",
+        "effect": "choose charge before rolling (1/2/3); if either challenge die ≤ charge, weak→strong hit"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "craft/modify/disarm explosive, or threaten with one",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Take Decisive Action"
+        ],
+        "trigger": "momentum at max, reset before rolling to trigger explosive",
+        "effect": "may reroll all challenge dice"
+      }
+    ]
+  },
+  {
+    "name": "Devotant",
+    "category": "Path",
+    "meta": "(named deity/power/entity, linked to a chosen stat)",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Secure an Advantage",
+          "Gain Ground"
+        ],
+        "trigger": "call on deity for guidance",
+        "effect": "roll +linked stat; hit: +1 momentum or +1 spirit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Swear an Iron Vow",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "in service to faith / divine quest formidable+",
+        "effect": "roll +linked stat, +2 momentum/spirit on hit; fulfilling marks +2 ticks bonds legacy on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Hearten"
+        ],
+        "trigger": "contemplation/sharing faith",
+        "effect": "may roll +linked stat; +1 spirit or momentum on strong hit"
+      }
+    ]
+  },
+  {
+    "name": "Diplomat",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "resolve dispute/negotiate/gather support",
+        "effect": "vow +1, strong hit marks progress; fulfilling (formidable+) marks +2 ticks bonds legacy on hit"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "defuse/reason/negotiate",
+        "effect": "+1; on miss, may take a different tack: reroll all + add +2; second miss = Pay the Price"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Make a Connection",
+          "Sojourn"
+        ],
+        "trigger": "always",
+        "effect": "+1; Sojourn strong hit w/ match: +2 momentum or an extra auto-strong-hit recover move"
+      }
+    ]
+  },
+  {
+    "name": "Empath",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "read intent/emotions/memories of a nearby being",
+        "effect": "roll +heart; strong: +2 momentum, +1 on moves interacting with them this scene; weak: partial/costly read"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Read Heart"
+        ],
+        "trigger": "as above",
+        "effect": "hit while reading also lets you subtly influence them: +1 momentum more (+mark progress if in a fight)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Face Danger"
+        ],
+        "trigger": "soothe distress via empathic bond",
+        "effect": "roll +spirit; +1 momentum on hit; if ally, also +2 spirit to them on hit"
+      }
+    ]
+  },
+  {
+    "name": "Explorer",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Explore a Waypoint",
+          "Finish an Expedition"
+        ],
+        "trigger": "always",
+        "effect": "Explore hit: +1 momentum; Finish hit: +1 extra tick discoveries legacy"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "wondrous sight/phenomenon encountered",
+        "effect": "choose: Find inspiration (+1 momentum, no roll) / Soak it in (Hearten +1, +1 momentum on hit)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Secure an Advantage"
+        ],
+        "trigger": "study newfound place from safety",
+        "effect": "+1, +1 momentum on hit (+1 more w/ match)"
+      }
+    ]
+  },
+  {
+    "name": "Fated",
+    "category": "Path",
+    "meta": "(background vow synergy)",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Fulfill Your Vow"
+        ],
+        "trigger": "on your background vow",
+        "effect": "filling a box also marks 1 tick quests legacy; fulfilling = automatic strong hit (self-granted, no cost)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Face Death",
+          "Face Desolation"
+        ],
+        "trigger": "background vow still unfulfilled",
+        "effect": "may take automatic strong hit instead of rolling; costs: this asset counts as an impact until next milestone on that vow"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "progress move tied to background vow, roll a 10 on either challenge die",
+        "effect": "may reroll that die; strong hit: +2 momentum"
+      }
+    ]
+  },
+  {
+    "name": "Firebrand",
+    "category": "Path",
+    "meta": "· Fire 0-5",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "rest & meditate to gather fire",
+        "effect": "roll +spirit: strong=+3 fire, weak=+2, miss=+2 fire & Endure Harm(-2); fire fuels attack/overcome moves (roll it as a bonus stat)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Endure Harm"
+        ],
+        "trigger": "strong hit w/ match",
+        "effect": "may ignore the harm and gain +fire equal to the harm amount instead"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Gain Ground",
+          "Strike"
+        ],
+        "trigger": "≥3 fire, unleash hell",
+        "effect": "automatic strong hit + mark progress; fire resets to 0"
+      }
+    ]
+  },
+  {
+    "name": "Fugitive",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "always",
+        "effect": "may upgrade a roll to strong hit; doing so fills a segment of a 4-segment clock; full clock = a hunter catches up (overcoming them clears/reduces the clock)"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "hide/conceal identity/flee a pursuer",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "Fulfill Your Vow (extreme+) clearing your name/defeating the hunter",
+        "effect": "self-granted free; may then exchange this asset for another at the same marked-ability count"
+      }
+    ]
+  },
+  {
+    "name": "Gearhead",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "craft/repair/repurpose/modify tech",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gather Information"
+        ],
+        "trigger": "study/disassemble a machine",
+        "effect": "reroll all dice; on a match, mark 1 tick discoveries legacy"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Secure an Advantage"
+        ],
+        "trigger": "hours+ to build/enhance a device",
+        "effect": "hit: device ready; one-time use grants an automatic strong hit to whoever uses it"
+      }
+    ]
+  },
+  {
+    "name": "Gunner",
+    "category": "Path",
+    "meta": "`<REQ: wield a heavy ranged personal weapon>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Strike"
+        ],
+        "trigger": "choose before rolling",
+        "effect": "Pin them down: +1, +1 momentum on hit / Make them hurt: mark progress on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Take Decisive Action"
+        ],
+        "trigger": "empty your gun, decide before rolling",
+        "effect": "may Sacrifice Resources(-1), reroll one challenge die; may need Check Your Gear for more ammo if fight continues"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Clash",
+          "Enter the Fray",
+          "Endure Stress"
+        ],
+        "trigger": "with your named favorite gun",
+        "effect": "Clash +1; Enter the Fray/Endure Stress +1 and +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Gunslinger",
+    "category": "Path",
+    "meta": "`<REQ: wield a pistol>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "face off (+heart) / act unseen (+shadow)",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: immediate free shot, mark progress twice"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gain Ground",
+          "React Under Fire"
+        ],
+        "trigger": "move into cover",
+        "effect": "+1; strong hit grants +1 to later attack/defend-at-range moves until a miss loses the cover"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Compel",
+          "Gain Ground"
+        ],
+        "trigger": "threat of violence, held at gunpoint",
+        "effect": "+1, +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Haunted",
+    "category": "Path",
+    "meta": "(named haunting spirit)",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "call on the spirit's insight",
+        "effect": "+1; weak hit also Endure Stress(-1); strong hit w/ match: mark 1 tick bonds legacy"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Face Death"
+        ],
+        "trigger": "guided by the spirit",
+        "effect": "+1; strong hit: mark 2 ticks bonds legacy"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "Fulfill Your Vow (extreme+) in service to the spirit",
+        "effect": "self-granted free; choose: Let them go (mark 2 ticks bonds legacy per marked ability, discard asset) / Bolster the link (see catalog note*)"
+      }
+    ]
+  },
+  {
+    "name": "Healer",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Heal"
+        ],
+        "trigger": "give medical care",
+        "effect": "+1; treating someone else on hit: +1 spirit or +1 momentum"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gather Information"
+        ],
+        "trigger": "study medical evidence/remains",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: mark 1 tick discoveries legacy"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "daily, safe place, plenty of time",
+        "effect": "may Sacrifice Resources(-1) for risk-free care: roll action die only, 1-4 = +1 health, 5-6 = +2 health"
+      }
+    ]
+  },
+  {
+    "name": "Infiltrator",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "break in / infiltrate / hack a secure system",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: +1 momentum more"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Face Danger",
+          "Secure an Advantage"
+        ],
+        "trigger": "establish a false identity",
+        "effect": "+1; hit: that identity grants +1 to later deceive/influence moves; miss w/ match unravels it completely"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Check Your Gear"
+        ],
+        "trigger": "device for infiltration/espionage/sabotage",
+        "effect": "+1; hit: reroll all dice the first time a move uses the device"
+      }
+    ]
+  },
+  {
+    "name": "Kinetic",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "risky situation, draw on kinetic powers",
+        "effect": "+2, Lose Momentum(-2)"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "desperate effort to change an outcome",
+        "effect": "as L1 but applied after rolling"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "momentum at max, attempt a great kinetic feat",
+        "effect": "reset momentum, then automatic strong hit on the fueled move"
+      }
+    ]
+  },
+  {
+    "name": "Leader",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Aid Your Ally",
+          "Secure an Advantage",
+          "Gain Ground"
+        ],
+        "trigger": "aid an ally via leadership/coordination",
+        "effect": "+1; strong hit: present allies also get +1 momentum"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "+heart, coordinate team into the fight",
+        "effect": "acts before allies; strong hit: allies get an automatic strong hit too; w/ match also marks progress on any fight objectives"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "influence someone (non-ally) via leadership",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: +1 momentum more, mark 1 tick bonds legacy"
+      }
+    ]
+  },
+  {
+    "name": "Looper",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Endure Harm",
+          "Companion Takes a Hit",
+          "Withstand Damage"
+        ],
+        "trigger": "miss on a suffer move (not Endure Stress)",
+        "effect": "may \"loop back\": Lose Momentum(-2), reroll all; +1 momentum on strong hit"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "create a time-link, note current meter values",
+        "effect": "later looping back to that moment rolls +gap-in-time (+4 min/+3 hr/+2 day); one active link at a time"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "always",
+        "effect": "any reroll granted by ANY asset ability also adds +1"
+      }
+    ]
+  },
+  {
+    "name": "Lore Hunter",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "recover knowledge/relic, formidable+",
+        "effect": "reroll all dice; milestones grant +2 momentum; fulfilling marks +2 ticks discoveries legacy on hit"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "extended research/study",
+        "effect": "reroll challenge dice; on a match, mark 1 tick discoveries legacy"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Secure an Advantage",
+          "Gain Ground"
+        ],
+        "trigger": "recall esoteric knowledge",
+        "effect": "+1, +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Loyalist",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Aid Your Ally",
+          "Secure an Advantage",
+          "Gain Ground"
+        ],
+        "trigger": "aid an ally",
+        "effect": "+1, +1 momentum on hit (in addition to the ally's own benefit); strong hit w/ match: both mark 1 tick bonds legacy"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "always",
+        "effect": "may burn momentum on an ally's behalf; ally gets +1 momentum for it"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "stand with an ally on their progress move",
+        "effect": "roll one challenge die: 1-9 ally may swap in your die; 10 = ally must use yours as the worse of theirs (small downside)"
+      }
+    ]
+  },
+  {
+    "name": "Mercenary",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "wage/defend war for payment",
+        "effect": "vow: reroll all dice; fulfilling: legacy reward one rank higher"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Make a Connection"
+        ],
+        "trigger": "seek someone needing your services",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: mission ties to your past, mark 2 ticks quests legacy"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Check Your Gear",
+          "Resupply"
+        ],
+        "trigger": "mid-fight gear check / loot the battlefield after",
+        "effect": "+2"
+      }
+    ]
+  },
+  {
+    "name": "Naturalist",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Secure an Advantage",
+          "Gather Information"
+        ],
+        "trigger": "knowledge of lifeforms/ecosystems",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: mark 1 tick discoveries legacy"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "risky action to pacify/avoid/outwit a creature",
+        "effect": "decide before rolling: may reroll all, Lose Momentum(-2)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Resupply",
+          "Face Danger"
+        ],
+        "trigger": "scavenge in nature / vs environmental threat",
+        "effect": "Resupply hit: +1 supply; Face Danger: +1, +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Navigator",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Set a Course"
+        ],
+        "trigger": "choose approach",
+        "effect": "Fastest: +2 momentum on strong hit / Safest: +1 add; strong hit w/ match: mark 1 tick discoveries legacy"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Secure an Advantage",
+          "Face Danger",
+          "Gather Information"
+        ],
+        "trigger": "chart the way / find a path around hazard / study charts",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "once per expedition",
+        "effect": "may override a weak hit/miss with an automatic strong hit"
+      }
+    ]
+  },
+  {
+    "name": "Outcast",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Hearten"
+        ],
+        "trigger": "in isolation",
+        "effect": "decide before rolling: may reroll all, but strong→weak hit downgrade"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "Sacrifice Resources drops supply to 0",
+        "effect": "roll +wits: strong=+1 supply, weak=may Lose Momentum(-1) for +1 supply, miss=stays 0 & Lose Momentum(-1)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Sojourn"
+        ],
+        "trigger": "strong hit w/ match",
+        "effect": "may introduce someone who understands you; Make a Connection with them = automatic strong hit, mark 2 ticks bonds legacy"
+      }
+    ]
+  },
+  {
+    "name": "Scavenger",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Gather Information"
+        ],
+        "trigger": "scavenge a wreck/ruin/site",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: unique find, +2 momentum, envision significance"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Secure an Advantage"
+        ],
+        "trigger": "cobble together an ad hoc item",
+        "effect": "hit: item grants +1 to aided moves; rolling a 1 while using it destroys/depletes it"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Check Your Gear"
+        ],
+        "trigger": "always",
+        "effect": "roll +wits or +supply (higher); +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Scoundrel",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "lie/bluff/steal/cheat",
+        "effect": "+2; strong hit w/ match: +momentum = shadow stat"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Make a Connection"
+        ],
+        "trigger": "seek a new underworld contact",
+        "effect": "may roll +shadow; if so, reroll all on a miss"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "quick escape/con, burn momentum for a strong hit",
+        "effect": "+1 momentum after reset; may mark 2 ticks quests legacy (future trouble foreshadowed)"
+      }
+    ]
+  },
+  {
+    "name": "Seer",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "prophetic dream",
+        "effect": "Ask the Oracle (interpretive table); recorded answer later gives an automatic strong hit once, when it comes true"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Gather Information"
+        ],
+        "trigger": "focus/meditate about a place/being/situation",
+        "effect": "roll +spirit; +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Undertake an Expedition",
+          "Sojourn"
+        ],
+        "trigger": "roll a match within a site/community",
+        "effect": "may envision sudden insight; +2 momentum if so"
+      }
+    ]
+  },
+  {
+    "name": "Shade",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "veiled, ambush/hide/sneak",
+        "effect": "may preset action die to 5 (6 in darkness); miss also reveals you, in addition to normal cost"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "expand veil to darken surroundings",
+        "effect": "roll +shadow: strong=wide darkness, weak=immediate area only, miss=fail + draw attention"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "intentionally drop veil for effect",
+        "effect": "+2 momentum, no roll"
+      }
+    ]
+  },
+  {
+    "name": "Slayer",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "investigate/track/stalk an inhuman foe",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Swear an Iron Vow",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "slay inhuman foe in service to a community, formidable+",
+        "effect": "reroll all dice; fulfilling marks +2 ticks bonds legacy on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Enter the Fray"
+        ],
+        "trigger": "objective: slay an inhuman foe",
+        "effect": "+2 momentum; may raise the fight's objective rank for a bigger payoff via Take Decisive Action"
+      }
+    ]
+  },
+  {
+    "name": "Sleuth",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow"
+        ],
+        "trigger": "solve a mystery, capped at formidable",
+        "effect": "caps vow rank at formidable; Gather Information during the case rolls 3 challenge dice, keep 2 (best-fit)"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "avoid detection while surveilling",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Make a Connection"
+        ],
+        "trigger": "with a potential informant",
+        "effect": "may take an automatic weak hit instead of rolling"
+      }
+    ]
+  },
+  {
+    "name": "Sniper",
+    "category": "Path",
+    "meta": "`<REQ: wield a rifle>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "target a minor foe from a distance, outside a fight",
+        "effect": "roll +wits: strong=target out of action (mark progress if you then Enter the Fray on remaining foes), weak=same but Lose Momentum(-1), miss=cost per Pay the Price"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Strike"
+        ],
+        "trigger": "distance shot, time to line up",
+        "effect": "may roll +wits; strong hit: mark progress"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Secure an Advantage",
+          "Gain Ground"
+        ],
+        "trigger": "scope study / careful aim",
+        "effect": "may sacrifice time: Lose Momentum(-1/-2/-3), add that amount to roll; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Tech",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "configure/optimize/hack/disrupt an electronic system",
+        "effect": "+1; weak hit may press luck: reroll all + add +2 instead of +1"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Withstand Damage"
+        ],
+        "trigger": "miss",
+        "effect": "may Lose Momentum(-2), reroll all with +wits instead of +integrity, weak→miss downgrade"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Face Danger"
+        ],
+        "trigger": "(also Secure an Advantage) craft a program for a specific function",
+        "effect": "+2, +1 momentum on hit; one-time trigger of the program lets you reroll all dice"
+      }
+    ]
+  },
+  {
+    "name": "Trader",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Sojourn",
+          "Compel"
+        ],
+        "trigger": "always",
+        "effect": "may roll +supply; if so, Sacrifice Resources(-1)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Make a Connection",
+          "Resupply"
+        ],
+        "trigger": "with/bartering a merchant connection",
+        "effect": "Make Connection +1; Resupply may reroll action die if less than supply; strong hit: +1 momentum or +1 supply"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Make a Connection"
+        ],
+        "trigger": "Sojourn strong hit w/ match",
+        "effect": "chance at a unique item/payload; success marks 2 ticks quests legacy"
+      }
+    ]
+  },
+  {
+    "name": "Vestige",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Face Death",
+          "Face Desolation"
+        ],
+        "trigger": "always",
+        "effect": "reroll all dice; strong hit w/ match: reveals a new aspect of your heritage (narrative)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Secure an Advantage",
+          "Compel"
+        ],
+        "trigger": "via tale/performance/ceremony of heritage",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "move aided by your heritage relic, miss",
+        "effect": "may reroll action die"
+      }
+    ]
+  },
+  {
+    "name": "Veteran",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "in a fight",
+        "effect": "momentum reset +1; burning momentum to improve a result also grants +1 on your next move"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Make a Connection"
+        ],
+        "trigger": "always",
+        "effect": "+1; match: strong-hit-w/-match = they owe you a favor (mark 1 tick bonds legacy, Develop Your Relationship now) / miss-w/-match = past friction (narrative cost)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Secure an Advantage",
+          "Gain Ground"
+        ],
+        "trigger": "recall battlefield lesson",
+        "effect": "+1, +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Voidborn",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "in space / spacebound vehicle or station",
+        "effect": "momentum reset +1; entering planetside/high-gravity: Lose Momentum(-1)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Sojourn",
+          "Make a Connection",
+          "Hearten"
+        ],
+        "trigger": "within a spacebound community",
+        "effect": "+1; Hearten strong hit: +1 spirit or momentum"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "agile maneuver in low gravity",
+        "effect": "+1, +1 momentum on hit; strong hit w/ match: +1 momentum more"
+      }
+    ]
+  },
+  {
+    "name": "Weapon Master",
+    "category": "Path",
+    "meta": null,
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Enter the Fray",
+          "Gain Ground"
+        ],
+        "trigger": "personal combat / switch weapons or tactics, once/fight",
+        "effect": "Enter the Fray: +1, +1 momentum on hit; switching tactics: automatic strong hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Strike"
+        ],
+        "trigger": "limited-ammo/single-use personal weapon",
+        "effect": "+1, mark progress on hit, then Sacrifice Resources(-1); strong hit into immediate Take Decisive Action may retain a challenge die value"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Secure an Advantage"
+        ],
+        "trigger": "suit up/gather gear for a mission",
+        "effect": "may roll +supply; if so +2 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Crew Commander",
+    "category": "Path",
+    "meta": "· Command 0-4 (start 2, max 4; L2 raises max to 6)",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Face Danger"
+        ],
+        "trigger": "led/aided by crew, or as a leadership test",
+        "effect": "after rolling, may suffer -1 command to upgrade miss→weak or weak→strong; Pay the Price may cost -1 command instead"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "always (upgrade)",
+        "effect": "+2 command, max raised to 6"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Compel"
+        ],
+        "trigger": "command at 0, situation desperate",
+        "effect": "may Compel the crew to act; hit: +2 command"
+      }
+    ]
+  },
+  {
+    "name": "Banshee",
+    "category": "Companion",
+    "meta": "· Health 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition",
+          "Set a Course"
+        ],
+        "trigger": "riding the banshee",
+        "effect": "may roll +its health instead of the normal stat"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "detect a threat / avoid a fight, astride banshee",
+        "effect": "+1, +1 momentum on hit (+1 more w/ match)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Enter the Fray",
+          "Gain Ground",
+          "React Under Fire",
+          "Strike",
+          "Clash",
+          "Battle"
+        ],
+        "trigger": "roll a 1 on the action die in combat",
+        "effect": "may reroll that die"
+      }
+    ]
+  },
+  {
+    "name": "Combat Bot",
+    "category": "Companion",
+    "meta": "· Health 0-5",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Strike",
+          "Clash"
+        ],
+        "trigger": "aided by the bot",
+        "effect": "Strike +1; Clash +1 momentum on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Compel",
+          "Gain Ground"
+        ],
+        "trigger": "threat of violence, bot weapons visible",
+        "effect": "may roll +its health; +1 momentum on hit (+1 more w/ match)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "React Under Fire"
+        ],
+        "trigger": "once/fight, bot draws fire/distracts",
+        "effect": "roll +its health: strong=mark progress, weak=normal cost but you gain control"
+      }
+    ]
+  },
+  {
+    "name": "Glowcat",
+    "category": "Companion",
+    "meta": "· Health 0-3",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Secure an Advantage"
+        ],
+        "trigger": "study glowcat's reactions",
+        "effect": "add +its health"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Compel"
+        ],
+        "trigger": "glowcat reactions guide your approach",
+        "effect": "may reroll action die if less than its health"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Endure Stress"
+        ],
+        "trigger": "in the glowcat's company",
+        "effect": "+1; strong hit w/ match: +momentum = its health"
+      }
+    ]
+  },
+  {
+    "name": "Protocol Bot",
+    "category": "Companion",
+    "meta": "· Health 0-3",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "formal social interaction, bot-aided",
+        "effect": "+1; strong hit w/ match: mark bonus benefit (narrative empathy gain)"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "first visit to a new community/culture",
+        "effect": "may ask the bot's insight: +1 momentum, no roll"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "charged interaction, action die < bot's health",
+        "effect": "may reroll the action die"
+      }
+    ]
+  },
+  {
+    "name": "Rockhorn",
+    "category": "Companion",
+    "meta": "· Health 0-5",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "send rockhorn to attack/smash",
+        "effect": "roll +its health instead of a normal stat"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Companion Takes a Hit"
+        ],
+        "trigger": "for the rockhorn",
+        "effect": "weak hit counts as strong hit; strong hit w/ match: +1 health more or +1 momentum"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Endure Harm",
+          "Endure Stress"
+        ],
+        "trigger": "miss",
+        "effect": "may reroll action die if less than its health"
+      }
+    ]
+  },
+  {
+    "name": "Sidekick",
+    "category": "Companion",
+    "meta": "· Health 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "aided by sidekick's expertise, outside a fight",
+        "effect": "may reroll action die if less than its health; strong hit w/ match: mark 1 tick bonds legacy"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Enter the Fray",
+          "Clash"
+        ],
+        "trigger": "with sidekick's support",
+        "effect": "Enter the Fray: +2 momentum on hit; Clash: +1"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Face Danger",
+          "React Under Fire"
+        ],
+        "trigger": "sidekick pulls you out of trouble",
+        "effect": "roll +its health instead of own stat; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Sprite",
+    "category": "Companion",
+    "meta": "· Health 0-2",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "send sprite to perform trickery",
+        "effect": "add +its health"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Secure an Advantage",
+          "Gather Information"
+        ],
+        "trigger": "observe remotely via sprite",
+        "effect": "+its health as an add"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "moment's rest",
+        "effect": "sprite returns to max health automatically, no roll"
+      }
+    ]
+  },
+  {
+    "name": "Survey Bot",
+    "category": "Companion",
+    "meta": "· Health 0-3",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "overland/in-site, +wits, bot-assisted",
+        "effect": "+1"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Secure an Advantage"
+        ],
+        "trigger": "once/expedition, send bot to scout",
+        "effect": "roll +its health; hit: also marks expedition progress; strong hit w/ match: mark 1 tick discoveries legacy"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Explore a Waypoint",
+          "Face Danger"
+        ],
+        "trigger": "bot sensors / detect a threat",
+        "effect": "roll +its health; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Symbiote",
+    "category": "Companion",
+    "meta": "· Health 0-2 (bound, not just companion)",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "aggressive move fueled by symbiote",
+        "effect": "+its health as an add; harm choice: Endure Harm or Companion Takes a Hit; restoring its health requires Endure Stress"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "heed the symbiote's guidance after rolling",
+        "effect": "may reroll all; then Endure Stress(-2)"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "always (upgrade)",
+        "effect": "symbiote's health max raised to 3"
+      }
+    ]
+  },
+  {
+    "name": "Utility Bot",
+    "category": "Companion",
+    "meta": "· Health 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "access system/cut obstacle/analyze/assemble via bot",
+        "effect": "roll +its health; +1 momentum on hit; strong hit w/ match: extra benefit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Repair"
+        ],
+        "trigger": "bot-aided",
+        "effect": "+1; miss: may reroll all after Lose Momentum(-2), reveals an alternate slower approach"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Check Your Gear"
+        ],
+        "trigger": "bot has a specific tool",
+        "effect": "roll +its health; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Voidglider",
+    "category": "Companion",
+    "meta": "· Health 0-4",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "spaceborne, voidglider guides",
+        "effect": "+1"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "ride voidglider to detect/evade a threat",
+        "effect": "roll +its health"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "signal voidglider to distract/attack a spaceborne foe",
+        "effect": "roll +its health; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Bonded",
+    "category": "Deed",
+    "meta": "`<REQ: Forge a Bond with a special individual>` (Input: Bond-mate)",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Sojourn",
+          "Hearten",
+          "Test Your Relationship",
+          "Develop Your Relationship"
+        ],
+        "trigger": "at/with bond-mate",
+        "effect": "reroll all dice; +1 momentum on strong hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Set a Course"
+        ],
+        "trigger": "back to bond-mate's location",
+        "effect": "+heart; mark 2 ticks bonds legacy w/ match"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "miss on a crucial move",
+        "effect": "may reroll via the bond-mate's memory; second miss forces marking shaken/traumatized (or Face Death if both marked)"
+      }
+    ]
+  },
+  {
+    "name": "Homesteader",
+    "category": "Deed",
+    "meta": "`<REQ: fill 4 boxes on bonds legacy track>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow",
+          "Fulfill Your Vow"
+        ],
+        "trigger": "in service to your home, formidable+",
+        "effect": "vow: reroll all dice, hit marks 1 tick bonds legacy; fulfilling: +2 more ticks bonds legacy on hit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Sojourn"
+        ],
+        "trigger": "in your home, choose one",
+        "effect": "Don't linger: automatic weak hit / Stay a bit: +1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Set a Course"
+        ],
+        "trigger": "for home",
+        "effect": "may reroll action die if less than spirit"
+      }
+    ]
+  },
+  {
+    "name": "Marked",
+    "category": "Deed",
+    "meta": "`<REQ: fill 5 boxes on quests legacy track>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Compel",
+          "Make a Connection"
+        ],
+        "trigger": "among those who know your reputation",
+        "effect": "+1; strong hit w/ match: mark 2 ticks bonds legacy"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "risk reputation to overcome a miss",
+        "effect": "may reroll all; second miss fills a segment of a 6-segment clock; full clock discards this asset"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Gain Ground"
+        ],
+        "trigger": "once/fight, via intimidation or command",
+        "effect": "reroll all; mark progress on hit"
+      }
+    ]
+  },
+  {
+    "name": "Oathbreaker",
+    "category": "Deed",
+    "meta": "`<REQ: Forsake Your Vow>` — counts as an impact while active",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Swear an Iron Vow",
+          "Forsake Your Vow"
+        ],
+        "trigger": "redeem yourself, extreme+, one time",
+        "effect": "marks the redemption vow specially; milestones on it grant +2 momentum; forsaking it again discards this asset (see catalog note*)"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Secure an Advantage",
+          "Compel"
+        ],
+        "trigger": "reaffirm commitment to the marked vow",
+        "effect": "+1, +1 momentum on hit"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Fulfill Your Vow"
+        ],
+        "trigger": "on the marked quest, hit",
+        "effect": "self-granted free; +1 to a chosen stat; asset then discarded permanently"
+      }
+    ]
+  },
+  {
+    "name": "Revenant",
+    "category": "Deed",
+    "meta": "`<REQ: Face Death>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Endure Harm",
+          "Face Death"
+        ],
+        "trigger": "at 0 health",
+        "effect": "+1; may then reroll action die if less than spirit"
+      },
+      {
+        "level": 2,
+        "alters": [
+          "Take Decisive Action"
+        ],
+        "trigger": "bringing death to a foe",
+        "effect": "may burn momentum to zero one challenge die (if momentum > that die's value); then Endure Stress(-2)"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Gather Information"
+        ],
+        "trigger": "study a place where death left its mark",
+        "effect": "may roll +heart; +1 momentum on hit (+1 more w/ match)"
+      }
+    ]
+  },
+  {
+    "name": "Survivor",
+    "category": "Deed",
+    "meta": "`<REQ: mark traumatized or permanently harmed>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Endure Stress"
+        ],
+        "trigger": "haunted by past experience",
+        "effect": "may Lose Momentum(-1) before rolling to reroll all; strong hit: +1 momentum"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "lasting-effect narrative impact, burn momentum to improve a result",
+        "effect": "may mark 1 tick quests or bonds legacy (player's choice of relevant track)"
+      },
+      {
+        "level": 3,
+        "alters": [],
+        "trigger": "always (upgrade)",
+        "effect": "the marked lasting effect no longer reduces max momentum/reset (still marked, less punishing)"
+      }
+    ]
+  },
+  {
+    "name": "Vanguard",
+    "category": "Deed",
+    "meta": "`<REQ: fill 6 boxes on discoveries legacy track>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [],
+        "trigger": "seek a safe location in a remote environment",
+        "effect": "progress roll vs discoveries legacy: strong=haven, +2 to recovery moves there; weak=+1; establishes a location asset-like benefit"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "+wits move, strong hit w/ match",
+        "effect": "+1 momentum"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Endure Stress"
+        ],
+        "trigger": "always",
+        "effect": "may roll +wits; +1 momentum on hit"
+      }
+    ]
+  },
+  {
+    "name": "Cohort",
+    "category": "Deed",
+    "meta": "`<REQ: Make a Connection and take them on as crewmate>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Withstand Damage",
+          "Pay the Price"
+        ],
+        "trigger": "always",
+        "effect": "specialist connection provides role-based benefits to you/allies; may suffer a cost by marking the specialist out of action instead of the normal cost"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "always",
+        "effect": "may spend 1 XP (not the normal 2/3) to add additional specialist connections; bonuses from multiple specialists don't stack on a single action"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Secure an Advantage"
+        ],
+        "trigger": "gather specialists to strategize",
+        "effect": "may reroll one die per participating specialist"
+      }
+    ]
+  },
+  {
+    "name": "Fleet Commander",
+    "category": "Deed",
+    "meta": "· Power 0-4 (max 4; L2 raises max to 5) `<REQ: fill 12 legacy boxes total, take command of a fleet>`",
+    "abilities": [
+      {
+        "level": 1,
+        "alters": [
+          "Pay the Price",
+          "Sojourn"
+        ],
+        "trigger": "fleetwide action: position/avoid hazard/fight",
+        "effect": "roll +power; Pay the Price costing the fleet suffers -1 power; 0 power marks the fleet Wrecked; refit via Sojourn"
+      },
+      {
+        "level": 2,
+        "alters": [],
+        "trigger": "always (upgrade)",
+        "effect": "+2 power, max raised to 5"
+      },
+      {
+        "level": 3,
+        "alters": [
+          "Undertake an Expedition"
+        ],
+        "trigger": "with your fleet",
+        "effect": "may reroll action die if less than the fleet's power"
+      }
+    ]
+  }
+]

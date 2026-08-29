@@ -1,0 +1,67 @@
+{
+  "name": "starforged-solo-gm",
+  "version": "0.1.0",
+  "description": "A solo AI game master for Ironsworn: Starforged, powered by OpenRouter and grounded in the official Dataforged ruleset.",
+  "main": "electron/main.cjs",
+  "private": true,
+  "scripts": {
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron electron/main.cjs",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "build": "vite build",
+    "start": "electron electron/main.cjs",
+    "test:engine": "node electron/engine/__selftest__.cjs",
+    "test:openrouter-loop": "node electron/engine/__selftest_openrouter_loop__.cjs",
+    "test:summarizer": "node electron/engine/__selftest_summarizer__.cjs",
+    "test:comfyui": "node electron/engine/__selftest_comfyui__.cjs",
+    "test:prompt-composer": "node electron/engine/__selftest_promptComposer__.cjs",
+    "test:updater": "node electron/__selftest_updater__.cjs",
+    "test": "npm run test:engine && npm run test:openrouter-loop && npm run test:summarizer && npm run test:comfyui && npm run test:prompt-composer && npm run test:updater",
+    "playtest": "node electron/engine/__playtest_simulation__.cjs",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:win:publish": "npm run build && electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.example.starforgedsologm",
+    "productName": "Starforged Solo GM",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "data/dataforged",
+        "to": "data/dataforged"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "KaiLeroy",
+      "repo": "starforged-gm"
+    }
+  }
+}
