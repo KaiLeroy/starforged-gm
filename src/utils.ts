@@ -85,6 +85,16 @@ export function formatToolCall(ev: TxEvent): FormattedTx {
   }
   const r: any = ev.result || {};
   switch (ev.name) {
+    case 'check_asset_bonuses': {
+      if (r.error) return { label: `Check asset bonuses failed: ${r.error}` };
+      const explicit = r.explicit || [];
+      const implicit = r.implicit || [];
+      const moveName = r.move_name || ev.args?.move_name || 'move';
+      const total = explicit.length + implicit.length;
+      if (total === 0) return { label: `Asset bonuses checked for ${moveName}: none apply` };
+      const names = [...explicit, ...implicit].map((e: any) => e.asset).join(', ');
+      return { label: `Asset bonuses for ${moveName}: ${names}` };
+    }
     case 'roll_action_move': {
       const move = r.move || {};
       const outcome = (r.outcome || '').replace('_', ' ');
@@ -234,6 +244,19 @@ export function formatToolCall(ev: TxEvent): FormattedTx {
     case 'roll_extra_challenge_die': {
       return { label: `Extra challenge die → ${r.die}` };
     }
+    case 'roll_bonus_challenge_dice': {
+      if (r.error) return { label: `Bonus dice roll failed: ${r.error}` };
+      const extra = (r.extra_dice || []).join(', ');
+      if (r.forced_match) {
+        const outcome = (r.outcome || '').replace('_', ' ');
+        return {
+          label: `Bonus dice (+${extra}) — forced match on ${r.dice_used?.join(', ')}`,
+          outcome,
+        };
+      }
+      const pairingCount = Array.isArray(r.possible_pairings) ? r.possible_pairings.length : 0;
+      return { label: `Bonus dice (+${extra}) — no match, ${pairingCount} pairings to choose from` };
+    }
     case 'reroll_challenge_dice': {
       return { label: `Rerolled challenge dice → ${r.challenge_dice?.join(', ')}` };
     }
@@ -264,6 +287,9 @@ export function formatToolCall(ev: TxEvent): FormattedTx {
     }
     case 'buy_asset': {
       return r.error ? { label: `Buy asset failed: ${r.error}` } : { label: `New asset: ${r.asset?.name ?? ev.args.asset_name} (${r.experience_remaining} XP left)` };
+    }
+    case 'grant_asset': {
+      return r.error ? { label: `Grant asset failed: ${r.error}` } : { label: `Asset granted: ${r.asset?.name ?? ev.args.asset_name} (no XP cost)` };
     }
     case 'upgrade_asset': {
       return r.error
@@ -327,6 +353,9 @@ export function formatToolCall(ev: TxEvent): FormattedTx {
     }
     case 'recommit_progress_track': {
       return r.error ? { label: `Recommit failed: ${r.error}` } : { label: `Recommitted: cleared ${r.clearedTicks} ticks, rank → ${r.newRank}` };
+    }
+    case 'set_track_rank': {
+      return r.error ? { label: `Set rank failed: ${r.error}` } : { label: `Rank set: ${r.oldRank} → ${r.newRank} (${r.name}, progress untouched)` };
     }
     case 'set_connection_rank': {
       return r.error ? { label: `Set rank failed: ${r.error}` } : { label: `Connection rank set: ${r.rank}` };

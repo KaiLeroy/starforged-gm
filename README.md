@@ -1310,6 +1310,46 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## The bare "roll_bonus_challenge_dice" log line -- a genuine display gap, and a systematic sweep found two more just like it
+
+Direct report: roll_bonus_challenge_dice shows up in the chat log's
+own debug-style lines with no value at all -- just the bare tool
+name, no dice, no outcome. This is the exact thing visible in the
+very first Sleuth bug screenshot several turns back, still unfixed,
+because it was never actually the same bug as the one fixed then.
+
+**Confirmed directly**: the debug-line formatter (formatToolCall) is
+a per-tool switch statement, and roll_bonus_challenge_dice was never
+given a case at all -- it was falling straight through to the generic
+default, `{ label: ev.name }`. Built when the tool itself was built a
+few turns ago; the formatter was simply never added alongside it.
+
+**Rather than patch just this one, checked systematically for the
+same gap elsewhere.** Compared every real tool name against every
+formatted case directly rather than guess which others might be
+affected -- found two more genuinely missing: check_asset_bonuses
+(one of the most frequently-called tools in the entire app, called
+before nearly every roll) and grant_asset. check_asset_bonuses being
+silently bare this whole time explains another loose thread from
+several turns back -- the very first Sleuth screenshot also showed a
+bare "check_asset_bonuses" line with no value, which was never
+actually resolved, just overshadowed by the more severe bug found in
+that same screenshot.
+
+**All three fixed** with real, informative summaries matching the
+established formatting patterns -- roll_bonus_challenge_dice shows
+the extra dice rolled and either the forced outcome or how many
+pairings are waiting on a choice; check_asset_bonuses names which
+assets it found relevant (or says plainly that none applied);
+grant_asset matches buy_asset's own format, distinguishing the free
+grant from a paid purchase.
+
+TypeScript check, full build, and engine tests all clean. Confirmed
+directly against real result shapes, not assumed from the tool's own
+schema -- ran the actual dice function to capture both a forced-match
+and a no-match result and traced each through the new formatter by
+hand before considering this done.
+
 ## The length target genuinely wasn't working -- found a real, specific ambiguity, not just re-worded the same instruction again
 
 A real playtest screenshot showed a response wildly beyond the 6-8
