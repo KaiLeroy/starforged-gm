@@ -1094,6 +1094,26 @@ const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'set_track_rank',
+      description:
+        "Directly sets a progress track's rank -- no tick clearing, no roll, no other side effect. Genuinely " +
+        'different from recommit_progress_track (which always clears progress as part of its own procedure): use ' +
+        "this specifically when a rank should change on its own, with the track's existing progress left " +
+        "untouched -- Sleuth's own text (\"make the rank of your quest one higher... and use the new rank when " +
+        'marking future progress\") and Slayer\'s sacrifice choice both call for exactly this, not a recommit.',
+      parameters: {
+        type: 'object',
+        properties: {
+          track_id: { type: 'string', description: "The same id chosen when this track was created via create_progress_track -- not a separately-generated value." },
+          rank: { type: 'string', enum: ['troublesome', 'dangerous', 'formidable', 'extreme', 'epic'], description: 'The new rank to set the track to.' },
+        },
+        required: ['track_id', 'rank'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'recommit_after_failed_bond',
       description:
         'Forge a Bond\'s miss consequence, ONLY if the player explicitly chooses to recommit to the relationship ' +
@@ -2016,6 +2036,13 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
     case 'recommit_progress_track': {
       try {
         return state.recommitProgressTrack(campaignState, args.track_id);
+      } catch (e) {
+        return { error: e.message };
+      }
+    }
+    case 'set_track_rank': {
+      try {
+        return state.setTrackRank(campaignState, args.track_id, args.rank);
       } catch (e) {
         return { error: e.message };
       }

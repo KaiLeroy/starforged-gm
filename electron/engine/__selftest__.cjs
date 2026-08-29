@@ -4377,6 +4377,39 @@ await check("set_asset_broken now correctly rejects a Companion outright rather 
   assert.strictEqual(r.broken, true, 'an actual Module should still be markable as broken');
 });
 
+console.log("Went back to the vow rank-change question after being pointed specifically at Sleuth's own text again. The earlier answer -- that Fulfill Your Vow's miss-and-recommit path is the only official way to change a vow's rank, and it always costs progress -- was wrong. Sleuth's own ability describes a second, completely separate mechanism: on a miss with a match during the investigation, 'make the rank of your quest one higher... and use the new rank when marking future progress' -- no mention of clearing any progress at all, genuinely different from the recommit path. The existing system prompt guidance for Sleuth already correctly identified this as its own thing, distinct from a recommit -- but it told the model to 'just update the track's own rank field,' a capability that turned out not to exist as any callable tool at all. Checked the full tool set directly rather than assume: nothing could change a progress track's rank without either being connection-specific (set_connection_rank, raise_connection_rank) or forcing a progress-clearing recommit (recommit_progress_track, recommit_after_failed_bond). Built the missing piece: set_track_rank, which changes only the rank field, no roll, no tick clearing, verified directly against a track carrying real progress to confirm ticks are genuinely left untouched, not just coincidentally zero in a thin test. Updated both Sleuth's and Slayer's guidance (which explicitly referenced the same, previously-nonexistent mechanism) to call this real tool by name.");
+await check("set_track_rank changes only a progress track's rank, leaving its existing progress ticks genuinely untouched -- verified with a real, non-zero tick count rather than a track that happens to start at zero, confirming this is a real fix for the exact gap Sleuth's own text calls for and no tool previously existed to satisfy", async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  await executeTool('create_progress_track', { id: 'vow-solve-the-murder', type: 'vow', name: 'Solve the murder', rank: 'dangerous' }, cs);
+  await executeTool('adjust_progress_ticks', { track_id: 'vow-solve-the-murder', delta: 20 }, cs);
+  const before = cs.progressTracks.find((t) => t.id === 'vow-solve-the-murder');
+  assert.strictEqual(before.ticks, 20);
+  const result = await executeTool('set_track_rank', { track_id: 'vow-solve-the-murder', rank: 'formidable' }, cs);
+  assert.strictEqual(result.oldRank, 'dangerous');
+  assert.strictEqual(result.newRank, 'formidable');
+  const after = cs.progressTracks.find((t) => t.id === 'vow-solve-the-murder');
+  assert.strictEqual(after.rank, 'formidable');
+  assert.strictEqual(after.ticks, 20, 'progress ticks must be genuinely untouched by a pure rank change, not coincidentally preserved');
+});
+await check("set_track_rank rejects an unknown track id and an invalid rank cleanly, and both Sleuth's and Slayer's own guidance now reference this real tool by name rather than a vague, previously-nonexistent 'update the field directly' instruction", async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  const badTrack = await executeTool('set_track_rank', { track_id: 'does-not-exist', rank: 'formidable' }, cs);
+  assert.ok(badTrack.error);
+  await executeTool('create_progress_track', { id: 'test-track', type: 'vow', name: 'Test', rank: 'dangerous' }, cs);
+  const badRank = await executeTool('set_track_rank', { track_id: 'test-track', rank: 'not_a_real_rank' }, cs);
+  assert.ok(badRank.error);
+  const { buildSystemPrompt } = require('./systemPrompt.cjs');
+  cs.character.stats = cs.character.stats || {};
+  state.addAsset(cs, { id: 'sleuth-real-id', name: 'Sleuth', category: 'Path' });
+  state.addAsset(cs, { id: 'slayer-real-id', name: 'Slayer', category: 'Path' });
+  const prompt = buildSystemPrompt(cs);
+  assert.ok(prompt.includes('call set_track_rank to raise the quest'), 'Sleuth guidance should reference the real tool');
+  assert.ok(prompt.includes('call set_track_rank to set the fight'), 'Slayer guidance should reference the real tool');
+  assert.ok(!prompt.includes("just update the track's own rank field"), 'the old, vague, previously-uncallable phrasing should be genuinely gone');
+});
+
 console.log(`\n${passed}/${total} checks passed.`);
 if (process.exitCode) {
   console.error('SOME CHECKS FAILED -- see above.');

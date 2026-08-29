@@ -1138,6 +1138,26 @@ function recommitProgressTrack(state, trackId) {
   return { dice: [d1, d2], lowest, clearedTicks, newTicks: track.ticks, newRank: track.rank };
 }
 
+/**
+ * Directly sets a progress track's rank, with no other side effect -- no tick clearing, no roll.
+ * This is genuinely different from recommitProgressTrack above (which always clears progress as
+ * part of its procedure) -- built specifically because Sleuth's own text ("make the rank of your
+ * quest one higher... and use the new rank when marking future progress") and Slayer's sacrifice
+ * choice both call for exactly this: a rank change with the track's existing progress left
+ * untouched. No tool existed for this at all before -- the system prompt told the model to "just
+ * update the track's own rank field," a capability that was never actually built, discovered only
+ * when a real playtest report asked why the AI had no way to change a vow's rank without losing
+ * progress.
+ */
+function setTrackRank(state, trackId, rank) {
+  const track = state.progressTracks.find((t) => t.id === trackId);
+  if (!track) throw new Error(`No progress track with id "${trackId}".`);
+  if (!RANK_TICKS[rank]) throw new Error(`Unknown rank "${rank}". Expected one of: ${Object.keys(RANK_TICKS).join(', ')}`);
+  const oldRank = track.rank;
+  track.rank = rank;
+  return { trackId, name: track.name, oldRank, newRank: rank, ticks: track.ticks };
+}
+
 /** Forge a Bond's miss consequence, only if the player chooses to recommit ("if you recommit to
  *  this relationship, roll both challenge dice, take the lowest value, and clear that number of
  *  progress boxes. Then, raise the connection's rank by one."). Not automatic -- the rulebook
@@ -1369,6 +1389,7 @@ module.exports = {
   applyStructuredAssetEffect,
   getStructuredAssetEffect,
   recommitProgressTrack,
+  setTrackRank,
   recommitAfterFailedBond,
   LEGACY_REWARD_TICKS,
   CONNECTION_RANKS,

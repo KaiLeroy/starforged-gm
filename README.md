@@ -1310,6 +1310,41 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Correcting my own earlier claim: the vow rank-change gap was real -- a tool was missing, not just a model-compliance issue
+
+Went back to the vow rank-change question after being pointed
+specifically at Sleuth's own text again -- and the earlier answer was
+wrong, worth saying plainly rather than glossing over.
+
+**The claim that Fulfill Your Vow's miss-and-recommit is the only
+official way to change a vow's rank was incomplete.** Sleuth's own
+ability describes a second, entirely separate mechanism: on a miss
+with a match during the investigation, "make the rank of your quest
+one higher... and use the new rank when marking future progress" --
+no mention of clearing any progress at all, genuinely different from
+the recommit path's mandatory cost.
+
+**The existing system prompt guidance for Sleuth already correctly
+recognized this as its own thing** -- it just told the model to "just
+update the track's own rank field," a capability that turned out not
+to exist as any callable tool at all. Checked the full tool set
+directly rather than assume one might be hiding somewhere: every
+rank-related tool was either connection-specific (set_connection_rank,
+raise_connection_rank) or forced a progress-clearing recommit
+(recommit_progress_track, recommit_after_failed_bond). Nothing could
+change a vow, expedition, or fight-objective track's rank on its own.
+
+**Built the missing piece.** set_track_rank changes only a track's
+rank field -- no roll, no tick clearing, nothing else touched.
+Verified against a track carrying real, non-zero progress
+specifically, to confirm the ticks are genuinely left alone rather
+than just coincidentally starting at zero in a thin test. Updated
+both Sleuth's and Slayer's guidance -- the two places that referenced
+this same, previously-nonexistent mechanism -- to call the real tool
+by name.
+
+2 new tests. Full regression, syntax, types, and playtest all clean.
+
 ## A large, multi-part bug report from real play -- two confirmed real bugs, and two mechanics that turned out to already be correct
 
 A dense, multi-item report from actual play, investigated claim by
