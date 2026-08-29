@@ -1310,6 +1310,50 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## The length target genuinely wasn't working -- found a real, specific ambiguity, not just re-worded the same instruction again
+
+A real playtest screenshot showed a response wildly beyond the 6-8
+sentence, 1-2 paragraph target -- roughly a dozen paragraphs, several
+NPCs each getting a full individual treatment. Worth actually
+diagnosing rather than just restating the same target with different
+words a third time.
+
+**What the screenshot actually showed**: a Gather Information roll
+directed at three NPCs at once, followed mid-turn by a second,
+separate mechanical event -- Sleuth's bonus-dice ability triggering on
+top of the original roll (visible as its own roll_bonus_challenge_dice
+call and a second momentum change). The response gave the initial hit
+its own full narration, then gave the bonus mechanic's revelation
+another full narration on top, stacking well past the target.
+
+**The likely cause: the instruction's own phrasing was genuinely
+ambiguous.** "After a tool result comes back, narrate what happens --
+6-8 sentences" reads naturally as a per-tool-result allowance, not a
+whole-turn budget -- and this exact turn had two tool results worth
+narrating (the roll, then the bonus mechanic), which lines up with
+getting roughly double the intended length.
+
+**Rewrote it to close that reading directly.** Now explicit that the
+target is for the entire final response, not something that stacks
+per tool result -- and names the two patterns visible in this exact
+screenshot as the thing to actively compress against: several NPCs
+answering one question, and a bonus mechanic resolving mid-turn on
+top of the original roll. When several threads are genuinely in play,
+that's framed as a reason to select the one or two that matter, not
+license to give each its own paragraph.
+
+**Worth being honest about the limit here, not overselling this as a
+fix that guarantees compliance.** Unlike this session's mechanical
+bugs, prose length can't be engine-enforced -- there's no tool call to
+validate or reject, just free text reaching the player directly. This
+closes a real, identified ambiguity in the instruction; it doesn't
+change the underlying fact that a model can still choose not to
+follow it, the same way several of this session's real bugs showed
+correct instructions being skipped outright.
+
+1 test updated to match. Full regression, syntax, types, and playtest
+all clean.
+
 ## Choice prompts moved into the chat itself -- no more darkening overlay, no more blocked scrolling
 
 Real feedback on the pending-choice UI: the darkening overlay should
