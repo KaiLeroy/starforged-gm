@@ -1309,6 +1309,41 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Debug log format: genuinely readable now, not just JSON-valid
+
+Direct feedback that the debug log's `.jsonl` files should be more
+readable. Confirmed the actual scale of the problem first rather than
+guess: in a real uploaded log, `systemPrompt` alone accounted for 79%
+of a single entry's total size, commonly past 100,000 characters.
+
+**Pretty-printing the outer JSON structure alone wouldn't have fixed
+this.** The real constraint is that JSON strings can't contain an
+actual line break at all -- only an escaped `\n` -- so a giant prose
+field stays one unreadable line with literal backslash-n sequences no
+matter how nicely the surrounding object gets indented.
+
+**The actual fix**: `systemPrompt` and `finalReply` are now split into
+arrays of lines before being logged, instead of left as single
+strings. `JSON.stringify`'s own pretty-printing puts each array
+element -- each real line of the original text -- on its own real line
+in the file. Verified this reconstructs byte-for-byte via
+`array.join('\n')`, including at realistic scale (a 100,000+ character
+fixture, not just a toy string), so nothing is lost -- this is a pure
+readability change. Also reordered fields so `systemPrompt`, by far
+the largest and least likely to differ from the previous turn's,
+comes last -- reading an entry top to bottom now reaches what actually
+happened before the largely-static prompt text.
+
+Entries are pretty-printed and separated by a blank line rather than
+one compact line each -- still cheaply appendable (no need to
+read/rewrite the whole file per turn), and still straightforward to
+split back into individual JSON documents by that same blank-line
+boundary.
+
+1 existing test updated to match the new format, 1 new test
+specifically at realistic scale. Full regression, syntax, types, and
+playtest all clean.
+
 ## Two real fixes from a fifth debug log, and the Custom Asset feature fully removed
 
 **A real bug: truths the player set manually were effectively ignored,

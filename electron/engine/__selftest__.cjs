@@ -3649,21 +3649,29 @@ await check("instruction 3d now correctly explains that a two-oracle cross-refer
 });
 
 console.log("Continuing the debug logging feature requested directly, to help tell apart an app bug (wrong or missing guidance in the system prompt) from a model bug (correct guidance the model didn't follow) for any specific turn. Backend complete: store.cjs gained an appendDebugLog function writing one complete diagnostic record per turn -- the exact system prompt sent, every tool call and result in order, and the final reply -- to a per-campaign JSON Lines log, opt-in via a new debugLogging config field defaulting to false for both fresh installs and old configs predating the field. Wired into both chat:send and chat:resolve-choice via a shared logDebugTurn helper in main.cjs, which never throws on a logging failure so a disk issue can't ever break the actual turn it's recording. A real mid-edit mistake happened wiring the second handler -- referencing a capturedEvents array before it was ever declared, which passes a syntax check (an undeclared-variable reference isn't a syntax error) but would throw at runtime -- caught by checking the actual file content directly rather than trusting the check, and fixed before it could ship. Frontend now complete too: a toggle and an 'Open Debug Log' button in Settings, wired through a new debugLog:reveal IPC handler that opens the log file directly if one exists, or its containing folder if debug logging was just turned on and no turn has happened yet.");
-await check("the debug log store functions work correctly across all three real cases: nothing written when a turn's own trigger call is skipped, multiple turns append correctly without overwriting each other, and each line is independently valid JSON", () => {
+await check("the debug log store functions work correctly across all three real cases: nothing written when a turn's own trigger call is skipped, multiple turns append correctly without overwriting each other, and each entry is independently valid, pretty-printed JSON separated by a blank line -- not one compact line each, deliberately, since a real systemPrompt commonly runs past 100,000 characters and needs to actually be readable directly in an editor", () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-store-test-'));
   try {
     const logPath = store.debugLogPath(tmpDir, 'default');
     assert.ok(!fs.existsSync(logPath), 'nothing should exist before any entry is appended');
-    store.appendDebugLog(tmpDir, 'default', { trigger: 'chat:send', userInput: 'first', systemPrompt: 'SP1', events: [], finalReply: 'reply one' });
-    store.appendDebugLog(tmpDir, 'default', { trigger: 'chat:send', userInput: 'second', systemPrompt: 'SP2', events: [{ type: 'tool_call', name: 'roll_action_move' }], finalReply: 'reply two' });
+    store.appendDebugLog(tmpDir, 'default', { trigger: 'chat:send', userInput: 'first', events: [], finalReply: ['reply one'], systemPrompt: ['SP1 line one', 'SP1 line two'] });
+    store.appendDebugLog(tmpDir, 'default', { trigger: 'chat:send', userInput: 'second', events: [{ type: 'tool_call', name: 'roll_action_move' }], finalReply: ['reply two'], systemPrompt: ['SP2'] });
     assert.ok(fs.existsSync(logPath));
-    const lines = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
-    assert.strictEqual(lines.length, 2, 'two appended entries should mean two lines, not one overwritten or merged');
-    const parsed = lines.map((l) => JSON.parse(l));
+    const raw = fs.readFileSync(logPath, 'utf-8');
+    assert.ok(raw.includes('\n  "userInput"'), 'entries should be genuinely pretty-printed, not compact single lines');
+    const chunks = raw
+      .split(/\n\n(?=\{)/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    assert.strictEqual(chunks.length, 2, 'two appended entries should mean two blank-line-separated chunks, not one overwritten or merged');
+    const parsed = chunks.map((c) => JSON.parse(c));
     assert.strictEqual(parsed[0].userInput, 'first');
     assert.strictEqual(parsed[1].userInput, 'second');
     assert.ok(parsed[0].timestamp, 'each entry should carry its own timestamp');
     assert.strictEqual(parsed[1].events[0].name, 'roll_action_move');
+    assert.deepStrictEqual(parsed[0].systemPrompt, ['SP1 line one', 'SP1 line two'], 'multi-line fields should round-trip as an array of lines, not get collapsed back into one string');
+    const keys = Object.keys(parsed[0]);
+    assert.strictEqual(keys[keys.length - 1], 'systemPrompt', 'systemPrompt should be ordered last -- it dwarfs every other field, so it should not block reading the rest of the entry first');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -4383,6 +4391,23 @@ await check("the narration instruction now explicitly forbids leaving a literal,
   assert.ok(prompt.includes('Never leave a literal placeholder in the reply itself'));
   assert.ok(prompt.includes('[my companion\'s name?]'), 'should reference the actual real-world pattern observed, not just an abstract rule');
   assert.ok(prompt.includes('never surface the bracket-and-question-mark itself as if it were finished prose'));
+});
+
+console.log("The debug log's JSONL format was genuinely unreadable directly in an editor -- a real systemPrompt commonly runs past 100,000 characters, and being JSON-encoded as a single string meant it rendered as one giant line with literal backslash-n sequences instead of real line breaks (confirmed directly: in a real uploaded log, systemPrompt alone accounted for 79% of the entry's total size). Pretty-printing the outer JSON structure alone wouldn't have fixed this, since the fundamental problem is JSON strings can't contain a real newline at all -- only an escaped one. The actual fix: systemPrompt and finalReply are now split into arrays of lines before being logged, rather than left as single strings, which lets JSON.stringify's own pretty-printing put each real line of the original text on its own real line in the file -- verified this reconstructs byte-for-byte via Array.join('\\n'), so nothing is lost, it's purely a readability change. Also reordered fields so systemPrompt -- overwhelmingly the largest part of any entry -- comes last, so reading an entry top to bottom reaches the actually-interesting parts (what happened, what the AI did) before the largely-static prompt text. Entries are now pretty-printed and separated by a blank line rather than one compact line each, still cheaply appendable and still straightforward to split back into individual JSON documents.");
+await check("a realistically large, multi-paragraph systemPrompt (well past what a toy test string would exercise) round-trips correctly through the new line-array format -- confirms this isn't just correct for small examples, matching the actual real-world case (a real logged systemPrompt commonly exceeds 100,000 characters) this change exists to make readable", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-store-test-'));
+  try {
+    const bigPrompt = Array.from({ length: 2000 }, (_, i) => `Line ${i} of the system prompt, with some real content to pad it out realistically.`).join('\n');
+    assert.ok(bigPrompt.length > 100000, 'the test fixture itself should be realistically large, not a toy string');
+    store.appendDebugLog(tmpDir, 'default', { trigger: 'chat:send', userInput: 'test', events: [], finalReply: ['ok'], systemPrompt: bigPrompt.split('\n') });
+    const raw = fs.readFileSync(store.debugLogPath(tmpDir, 'default'), 'utf-8');
+    const parsed = JSON.parse(raw.trim());
+    assert.strictEqual(parsed.systemPrompt.length, 2000, 'every line should survive the round trip, not get truncated or merged');
+    assert.strictEqual(parsed.systemPrompt.join('\n'), bigPrompt, 'the reconstructed text must be byte-for-byte identical to the original -- this is a readability change, not a lossy one');
+    assert.ok(!raw.includes('\\n'), 'a genuinely fixed file should have no literal backslash-n escape sequences left representing what used to be line breaks');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 console.log(`\n${passed}/${total} checks passed.`);

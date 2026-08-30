@@ -26,20 +26,26 @@ function debugLogPath(userDataDir, campaignId = 'default') {
  * Appends one complete turn's diagnostic record to a per-campaign JSON Lines log --
  * requested directly, to help tell apart an app bug (wrong/missing guidance in the system
  * prompt, a broken tool) from a model failure (ignoring or misreading guidance that was
- * actually correct) for any specific turn. JSON Lines (one JSON object per line) rather than
- * a single growing JSON array, specifically so this can be appended to cheaply -- no need to
- * read, parse, and rewrite the whole (potentially large, over a long campaign) file on every
- * single turn the way a single top-level array would require. Entirely opt-in (see
- * config.debugLogging in main.cjs) -- never written unless the player has actually turned it
- * on, since this captures the complete system prompt text (which changes with campaign state,
- * so it's genuinely useful to see the exact version a specific turn actually received) and
- * could otherwise grow large silently for players who never asked for it.
+ * actually correct) for any specific turn. Each entry is still appended independently (no
+ * need to read, parse, and rewrite the whole -- potentially large, over a long campaign --
+ * file on every single turn the way a single top-level array would require), but pretty-
+ * printed and separated by a blank line, rather than one compact, unreadable line per entry --
+ * a real turn's own systemPrompt field alone commonly runs past 100,000 characters, and a
+ * single giant escaped line is unreadable directly in an editor even with the rest of the
+ * object indented nicely around it. Still one genuine, self-contained JSON value per entry
+ * (parse with JSON.parse on the text between blank-line boundaries, or split the whole file on
+ * /\n\n(?=\{)/), just no longer one single physical line -- that tradeoff is deliberate here,
+ * since actual readability mattered more than the strict one-line-per-record JSONL convention.
+ * Entirely opt-in (see config.debugLogging in main.cjs) -- never written unless the player has
+ * actually turned it on, since this captures the complete system prompt text (which changes
+ * with campaign state, so it's genuinely useful to see the exact version a specific turn
+ * actually received) and could otherwise grow large silently for players who never asked for it.
  */
 function appendDebugLog(userDataDir, campaignId, entry) {
   const dir = debugLogsDir(userDataDir);
   fs.mkdirSync(dir, { recursive: true });
-  const line = JSON.stringify({ timestamp: new Date().toISOString(), campaignId, ...entry });
-  fs.appendFileSync(debugLogPath(userDataDir, campaignId), line + '\n', 'utf-8');
+  const record = JSON.stringify({ timestamp: new Date().toISOString(), campaignId, ...entry }, null, 2);
+  fs.appendFileSync(debugLogPath(userDataDir, campaignId), record + '\n\n', 'utf-8');
 }
 
 /** Saves generated image bytes to disk and returns an id to reference it by (not the raw path --

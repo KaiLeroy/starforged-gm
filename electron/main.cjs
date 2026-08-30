@@ -77,10 +77,21 @@ function logDebugTurn(config, campaignId, { trigger, userInput, systemPrompt, ev
       model: config.model,
       temperature: config.temperature,
       topP: config.topP,
-      systemPrompt,
       events,
-      finalReply: finalAssistant ? finalAssistant.content : '',
+      // Field order matters here: the most useful-to-scan fields come first, with systemPrompt
+      // last since it's overwhelmingly the largest part of the entry (commonly 100,000+
+      // characters, often 10x everything else combined) and the least likely to differ from
+      // the previous turn's -- reading top to bottom shouldn't mean wading through it just to
+      // reach what actually happened. Split into an array of lines, one string per line, rather
+      // than left as a single string -- JSON can't represent a real line break inside a string
+      // value at all, only an escaped \n, so a single massive string is one unreadable line
+      // even in an otherwise nicely pretty-printed object; an array of lines lets
+      // JSON.stringify's own pretty-printing put each line on its own real line instead.
+      // '\n'.join(entry.systemPrompt) reconstructs the original string when needed
+      // programmatically, e.g. Array.isArray(entry.systemPrompt) ? entry.systemPrompt.join('\n') : entry.systemPrompt.
+      finalReply: (finalAssistant ? finalAssistant.content : '').split('\n'),
       pendingChoice: pendingChoice || null,
+      systemPrompt: systemPrompt.split('\n'),
     });
   } catch (err) {
     console.error('Debug logging failed (turn itself is unaffected):', err.message);
