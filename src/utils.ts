@@ -90,10 +90,18 @@ export function formatToolCall(ev: TxEvent): FormattedTx {
       const explicit = r.explicit || [];
       const implicit = r.implicit || [];
       const moveName = r.move_name || ev.args?.move_name || 'move';
-      const total = explicit.length + implicit.length;
-      if (total === 0) return { label: `Asset bonuses checked for ${moveName}: none apply` };
-      const names = [...explicit, ...implicit].map((e: any) => e.asset).join(', ');
-      return { label: `Asset bonuses for ${moveName}: ${names}` };
+      if (explicit.length === 0 && implicit.length === 0) return { label: `Asset bonuses checked for ${moveName}: none apply` };
+      // explicit and implicit mean genuinely different things, and showing them identically is
+      // exactly what made a real player reasonably ask why a Companion's ability seemed to be
+      // "used" on a roll with no narrative connection to it at all -- it wasn't actually used,
+      // just surfaced as a candidate for the model to judge fictional relevance on, same as any
+      // implicit-trigger asset gets surfaced for every move (the engine has no way to know the
+      // narrative content of a roll, only its name) -- the model correctly didn't apply it here,
+      // but the old label gave no hint that "surfaced" and "applied" aren't the same thing.
+      const parts = [];
+      if (explicit.length > 0) parts.push(`${explicit.map((e: any) => e.asset).join(', ')} (named-move match)`);
+      if (implicit.length > 0) parts.push(`${implicit.map((e: any) => e.asset).join(', ')} (possible fictional match, not guaranteed to apply)`);
+      return { label: `Asset bonuses checked for ${moveName}: ${parts.join('; ')}` };
     }
     case 'roll_action_move': {
       const move = r.move || {};

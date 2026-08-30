@@ -1309,6 +1309,40 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## "Why does it use Utility Bot when there's no mention of it?" -- a real, direct question that turned out to be a misleading label, not a misapplied mechanic
+
+Uploaded log from a mixed-format file (this campaign's log spanned the
+v0.1.14 update mid-session -- both the old compact and new pretty-
+printed entries needed handling in the same file to read it at all).
+
+**Checked the actual mechanics before assuming anything was wrong.**
+check_asset_bonuses surfaced Utility Bot for a Face Danger roll with
+no narrative connection to it at all -- but the roll that followed
+used the normal +wits stat, not the bot's health-substitution ability.
+The AI's actual judgment was already correct: it recognized the
+fiction (sneaking through alleys, avoiding a checkpoint) didn't match
+the bot's own trigger ("access system/cut obstacle/analyze/assemble
+via bot") and didn't apply it.
+
+**The real problem was the debug-log label itself, not the mechanic.**
+"Asset bonuses for Face Danger: Utility Bot" reads as though the bot
+was actually relevant or used -- with no way to tell that from an
+"explicit" match (a named-move alter, effectively guaranteed) at a
+glance. An "implicit" match is exactly the opposite: a candidate
+surfaced because the engine can't judge fictional relevance on its
+own, explicitly not guaranteed to apply, per the tool's own existing
+description -- but the label didn't carry that distinction into what
+the player actually sees.
+
+Fixed the label directly: explicit and implicit matches are now
+described differently, with implicit ones stated plainly as "possible
+fictional match, not guaranteed to apply." No system-prompt or
+mechanical change needed here -- the underlying judgment was already
+right, verified directly against the real roll that followed.
+
+TypeScript check and full build clean; the fix traced by hand against
+the exact real data from the log.
+
 ## Debug log format: genuinely readable now, not just JSON-valid
 
 Direct feedback that the debug log's `.jsonl` files should be more
