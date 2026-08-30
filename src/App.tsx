@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { CampaignRecord, ChatEvent, Config, MoveSummary, Stats } from './types';
+import type { CampaignRecord, ChatEvent, Config, MoveSummary, Stats, UpdaterStatus } from './types';
 import { CharacterSheet, ChatLog, Composer, NewCampaignModal, SettingsModal } from './components';
 import { DisplayMessage, TxEvent, parseDisplayMessages } from './utils';
 import { SectorView } from './SectorView';
@@ -35,11 +35,29 @@ export default function App() {
   const [sessionZeroTruthsDone, setSessionZeroTruthsDone] = useState(false);
   const [importCharacterError, setImportCharacterError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdaterStatus>({ status: 'idle' });
 
   // Config and the moves catalog don't depend on which campaign is active.
   useEffect(() => {
     window.game.getConfig().then(setConfig);
     window.game.getMoves().then(setMoves);
+  }, []);
+
+  // Background update checking -- once shortly after launch (a short delay so it doesn't
+  // compete with the initial campaign load), then periodically for anyone who leaves the app
+  // open a long time (a real possibility for a session-based game). Deliberately no auto-
+  // download or auto-install here, matching updater.cjs's own conservative design -- this only
+  // ever discovers that an update exists; downloading and installing both stay explicit actions
+  // the player takes via the topbar button below, never something that happens on its own.
+  useEffect(() => {
+    const unsubscribe = window.updater.onStatus(setUpdateStatus);
+    const initialCheck = setTimeout(() => window.updater.check(), 5000);
+    const periodicCheck = setInterval(() => window.updater.check(), 4 * 60 * 60 * 1000);
+    return () => {
+      unsubscribe();
+      clearTimeout(initialCheck);
+      clearInterval(periodicCheck);
+    };
   }, []);
 
   // Load the chosen campaign's state whenever campaignId changes, and subscribe to its chat events.
@@ -287,6 +305,48 @@ export default function App() {
           <button className="icon-btn" onClick={() => setShowGallery(true)}>
             Gallery
           </button>
+          {(() => {
+            // A single button whose label, styling, and click behavior all follow from the
+            // current status -- deliberately low-key (matches every other topbar icon-btn) until
+            // there's actually something worth the player's attention, at which point it steps
+            // up to the same accent colors used elsewhere for a genuine option (cyan) or a ready-
+            // to-go action (the success green also used for burn_momentum's own improved-outcome
+            // choice). 'unavailable' covers both a dev build (where this is expected, not an
+            // error) and a real failure -- either way, clicking it just tries again.
+            if (updateStatus.status === 'checking') {
+              return (
+                <button className="icon-btn" disabled>
+                  Checking…
+                </button>
+              );
+            }
+            if (updateStatus.status === 'available') {
+              return (
+                <button className="icon-btn" style={{ borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }} onClick={() => window.updater.download()}>
+                  Update available (v{updateStatus.version})
+                </button>
+              );
+            }
+            if (updateStatus.status === 'downloading') {
+              return (
+                <button className="icon-btn" disabled>
+                  Downloading… {updateStatus.percent ?? 0}%
+                </button>
+              );
+            }
+            if (updateStatus.status === 'downloaded') {
+              return (
+                <button className="icon-btn" style={{ borderColor: 'var(--success)', color: 'var(--success)' }} onClick={() => window.updater.install()}>
+                  Restart &amp; install (v{updateStatus.version})
+                </button>
+              );
+            }
+            return (
+              <button className="icon-btn" onClick={() => window.updater.check()}>
+                Check for Updates
+              </button>
+            );
+          })()}
           <button className="icon-btn" onClick={() => setShowSettings(true)}>
             Settings
           </button>

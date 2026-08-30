@@ -1309,6 +1309,46 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Background update checking, and a single topbar button replacing the Settings-only manual check
+
+Requested directly: periodic, automatic update checking, plus a small,
+non-intrusive way to surface it -- offered as a choice between a
+top-of-screen bar or a button near Settings, with the update checker
+removed from Settings in the latter case. Went with the button: it
+matches the existing row of small icon-btns in the topbar (Moves,
+Gallery, Settings) rather than introducing a new, heavier UI pattern
+just for this, and a persistent bar is a bigger, harder-to-ignore
+fixture than what "non-intrusive" was actually asking for.
+
+**Background checking**: once, a few seconds after launch (a short
+delay so it doesn't compete with the initial campaign load), then
+every 4 hours for anyone who leaves the app open a long session -- a
+real possibility for this kind of game. Deliberately no auto-download
+or auto-install here, matching updater.cjs's own conservative design
+from when auto-update was first built: this only ever discovers an
+update exists. Downloading and installing both stay explicit actions
+the player takes, never something that happens on its own.
+
+**The button itself** is a single element whose label, styling, and
+click behavior all follow from the current status -- low-key (plain,
+matching every other topbar button) until there's actually something
+worth noticing, then stepping up to the same accent colors used
+elsewhere for a genuine option (cyan) or a ready action (the green
+already used for burn_momentum's own improved-outcome choice). Doubles
+as the manual "check now" replacement for what Settings used to offer,
+since clicking it while idle triggers a check directly.
+
+**Settings' own "App updates" section removed entirely**, per the
+request -- its state (current version, status, the check/download/
+install buttons) is gone from there and now lives at the App level
+instead, since the topbar button needs it regardless of whether
+Settings happens to be open.
+
+TypeScript check, full build, and the complete engine and updater test
+suites all clean -- no backend changes were needed here at all,
+updater.cjs's own check/download/install IPC handlers are unchanged;
+this was purely about when checking happens and how it surfaces.
+
 ## "Why does it use Utility Bot when there's no mention of it?" -- a real, direct question that turned out to be a misleading label, not a misapplied mechanic
 
 Uploaded log from a mixed-format file (this campaign's log spanned the

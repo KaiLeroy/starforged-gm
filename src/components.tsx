@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
-import type { CampaignState, Config, Stats, StartingAssetCategory, OwnedAsset, Connection, Character, CatalogAsset, PendingChoice, UpdaterStatus } from './types';
+import type { CampaignState, Config, Stats, StartingAssetCategory, OwnedAsset, Connection, Character, CatalogAsset, PendingChoice } from './types';
 import { DisplayMessage, formatToolCall } from './utils';
 
 /** Renders chat message content as markdown -- both the GM's narration and the player's own
@@ -1298,14 +1298,6 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
 
-  const [appVersion, setAppVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState<UpdaterStatus>({ status: 'idle' });
-  useEffect(() => {
-    window.updater.getVersion().then(setAppVersion).catch(() => {});
-    const unsubscribe = window.updater.onStatus((status: UpdaterStatus) => setUpdateStatus(status));
-    return unsubscribe;
-  }, []);
-
   const testConnection = async () => {
     setTestStatus('testing');
     setTestMessage('');
@@ -1455,33 +1447,6 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
           {testStatus === 'ok' && <span style={{ color: 'var(--success)', fontSize: 12 }}>Connected.</span>}
           {testStatus === 'error' && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{testMessage}</span>}
         </div>
-
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginTop: 20, marginBottom: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-          App updates
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Current version: {appVersion || '…'}</span>
-          <button
-            className="icon-btn"
-            onClick={() => window.updater.check()}
-            disabled={updateStatus.status === 'checking' || updateStatus.status === 'downloading'}
-          >
-            {updateStatus.status === 'checking' ? 'Checking…' : 'Check for Updates'}
-          </button>
-          {updateStatus.status === 'available' && (
-            <button className="icon-btn" style={{ borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }} onClick={() => window.updater.download()}>
-              Download v{updateStatus.version}
-            </button>
-          )}
-          {updateStatus.status === 'downloaded' && (
-            <button className="icon-btn" style={{ borderColor: 'var(--success)', color: 'var(--success)' }} onClick={() => window.updater.install()}>
-              Restart &amp; Install v{updateStatus.version}
-            </button>
-          )}
-        </div>
-        {updateStatus.status === 'not-available' && <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 4 }}>You're on the latest version.</p>}
-        {updateStatus.status === 'downloading' && <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>Downloading… {updateStatus.percent ?? 0}%</p>}
-        {(updateStatus.status === 'error' || updateStatus.status === 'unavailable') && <p style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>{updateStatus.message}</p>}
 
         <div className="modal-actions">
           <button className="icon-btn" onClick={onClose}>
