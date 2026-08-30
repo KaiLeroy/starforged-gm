@@ -10,10 +10,6 @@ function campaignPath(userDataDir, campaignId = 'default') {
   return path.join(userDataDir, 'campaigns', `${campaignId}.json`);
 }
 
-function customAssetsPath(userDataDir) {
-  return path.join(userDataDir, 'custom-assets.json');
-}
-
 function imagesDir(userDataDir) {
   return path.join(userDataDir, 'images');
 }
@@ -72,18 +68,6 @@ function deleteImage(userDataDir, imageId, mime = 'image/png') {
   if (fs.existsSync(file)) fs.unlinkSync(file);
 }
 
-/** The player's personal homebrew asset library -- global, shared across all campaigns. */
-function loadCustomAssets(userDataDir) {
-  const p = customAssetsPath(userDataDir);
-  if (!fs.existsSync(p)) return [];
-  return JSON.parse(fs.readFileSync(p, 'utf-8'));
-}
-
-function saveCustomAssets(userDataDir, assets) {
-  const p = customAssetsPath(userDataDir);
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(assets, null, 2), 'utf-8');
-}
 
 function loadConfig(userDataDir) {
   const p = configPath(userDataDir);
@@ -128,7 +112,6 @@ function deleteCampaign(userDataDir, campaignId) {
 module.exports = {
   configPath,
   campaignPath,
-  customAssetsPath,
   imagesDir,
   debugLogsDir,
   debugLogPath,
@@ -137,8 +120,6 @@ module.exports = {
   saveConfig,
   listCampaigns,
   deleteCampaign,
-  loadCustomAssets,
-  saveCustomAssets,
   saveImage,
   loadImageAsDataUrl,
   deleteImage,

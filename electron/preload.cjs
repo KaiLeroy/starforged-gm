@@ -23,11 +23,6 @@ contextBridge.exposeInMainWorld('game', {
   getAssetCatalog: () => ipcRenderer.invoke('assets:catalog'),
   getMoves: () => ipcRenderer.invoke('moves:list'),
 
-  getCustomAssets: () => ipcRenderer.invoke('custom-assets:list'),
-  createCustomAsset: (payload) => ipcRenderer.invoke('custom-assets:create', payload),
-  updateCustomAsset: (payload) => ipcRenderer.invoke('custom-assets:update', payload),
-  deleteCustomAsset: (payload) => ipcRenderer.invoke('custom-assets:delete', payload),
-
   updateSectorCell: (payload) => ipcRenderer.invoke('sector:update-cell', payload),
   addSectorFeature: (payload) => ipcRenderer.invoke('sector:add-feature', payload),
   removeSectorFeature: (payload) => ipcRenderer.invoke('sector:remove-feature', payload),

@@ -6,7 +6,6 @@ import { SectorView } from './SectorView';
 import { TruthsView } from './TruthsView';
 import { SessionZeroTruths } from './SessionZeroTruths';
 import { MovesPanel } from './MovesPanel';
-import { CustomAssetsModal } from './CustomAssetsModal';
 import { ImageGallery } from './ImageGallery';
 import { CampaignSelect } from './CampaignSelect';
 
@@ -26,7 +25,6 @@ export default function App() {
     await saveConfig(c);
     setShowSettings(false);
   };
-  const [showCustomAssets, setShowCustomAssets] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [showMoves, setShowMoves] = useState(false);
   const [moves, setMoves] = useState<MoveSummary[]>([]);
@@ -286,9 +284,6 @@ export default function App() {
           <button className="icon-btn" onClick={handleExportCharacter} disabled={needsCharacter}>
             Export Character
           </button>
-          <button className="icon-btn" onClick={() => setShowCustomAssets(true)}>
-            Custom Assets
-          </button>
           <button className="icon-btn" onClick={() => setShowGallery(true)}>
             Gallery
           </button>
@@ -334,7 +329,6 @@ export default function App() {
       )}
 
       {showMoves && <MovesPanel moves={moves} onTrigger={handleMoveTrigger} onClose={() => setShowMoves(false)} />}
-      {showCustomAssets && <CustomAssetsModal onClose={() => setShowCustomAssets(false)} />}
       {showGallery && <ImageGallery state={campaign.state} onClose={() => setShowGallery(false)} />}
       {showSettings && <SettingsModal config={config} onSave={handleSaveConfig} onClose={() => setShowSettings(false)} campaignId={campaignId || 'default'} />}
       {needsCharacter && !showSettings && <NewCampaignModal onCreate={handleCreateCharacter} onOpenSettings={() => setShowSettings(true)} />}

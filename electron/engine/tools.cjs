@@ -649,34 +649,6 @@ const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
-      name: 'create_custom_asset',
-      description:
-        "Create a homebrew asset when the player wants something that isn't in the official catalog -- a custom " +
-        'Path, Companion, Deed, vehicle, or module. Added to their personal asset library (available across all ' +
-        "campaigns), not automatically granted to the character -- follow up with buy_asset if they're getting it " +
-        'now via the Advance move, or grant it for free if this is happening during character creation.',
-      parameters: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          category: { type: 'string', enum: ['Path', 'Companion', 'Deed', 'Command Vehicle', 'Module', 'Support Vehicle'] },
-          abilities: {
-            type: 'array',
-            items: { type: 'string' },
-            minItems: 1,
-            maxItems: 3,
-            description: 'One to three ability texts, in the order they unlock. Write them the way the book does: "When you... roll +stat..." etc.',
-          },
-          requirement: { type: 'string', description: 'Optional prerequisite text, if this asset needs one.' },
-          color: { type: 'string', description: 'Optional hex color for the UI, e.g. "#3f7faa". Defaults to a neutral gray if omitted.' },
-        },
-        required: ['name', 'category', 'abilities'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'set_sector_info',
       description: "Set or update a sector's name, region, faction/power in control, and/or an overarching sector-level note (e.g. the rolled Sector Trouble, a campaign-wide hook). Call this early in the campaign, or whenever this changes. Operates on the current sector unless sector_id is given.",
       parameters: {
@@ -1449,16 +1421,14 @@ const TOOL_SCHEMAS = [
 
 /**
  * Executes a single tool call. `campaignState` is mutated in place for stateful tools;
- * the caller is responsible for persisting it after the turn. `customAssets` is the player's
- * homebrew asset library (also mutated in place by create_custom_asset), separate from
- * campaignState because it's shared across campaigns, not tied to any one of them. `imageGen`
- * (optional) is `{ baseUrl, workflowTemplate, saveImage(buffer) => imageId }`, injected by the
+ * the caller is responsible for persisting it after the turn. `imageGen` (optional) is
+ * `{ baseUrl, workflowTemplate, saveImage(buffer) => imageId }`, injected by the
  * caller so this module never touches the filesystem or Electron directly -- if omitted,
  * generate_image reports a clean "not configured" error instead of throwing.
  * Async because generate_image makes real network calls; every other case still just returns
  * a plain value, which works fine inside an async function.
  */
-async function executeTool(name, args, campaignState, customAssets = [], imageGen = null) {
+async function executeTool(name, args, campaignState, imageGen = null) {
   switch (name) {
     case 'roll_action_move': {
       const move = data.findMove(args.move_name);
@@ -1788,7 +1758,7 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
       }
     }
     case 'buy_asset': {
-      const asset = data.findAssetAnywhere(args.asset_name, customAssets);
+      const asset = data.findAsset(args.asset_name);
       if (!asset) return { error: `No asset found matching "${args.asset_name}".` };
       try {
         state.spendExperience(campaignState, state.ASSET_PURCHASE_COST);
@@ -1807,7 +1777,7 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
       }
     }
     case 'grant_asset': {
-      const asset = data.findAssetAnywhere(args.asset_name, customAssets);
+      const asset = data.findAsset(args.asset_name);
       if (!asset) return { error: `No asset found matching "${args.asset_name}".` };
       try {
         // Deliberately no spendExperience call -- this is the free-grant path, distinct from
@@ -1831,30 +1801,12 @@ async function executeTool(name, args, campaignState, customAssets = [], imageGe
       try {
         state.spendExperience(campaignState, state.ASSET_UPGRADE_COST);
         state.unlockAssetAbility(campaignState, owned.id, args.ability_number);
-        const fullAsset = data.findAssetAnywhere(owned.id, customAssets);
+        const fullAsset = data.findAsset(owned.id);
         const abilityText = fullAsset && fullAsset.Abilities ? fullAsset.Abilities[args.ability_number - 1].Text : null;
         return { asset: owned, ability_number: args.ability_number, ability_text: abilityText, experience_remaining: state.availableExperience(campaignState) };
       } catch (e) {
         return { error: e.message };
       }
-    }
-    case 'create_custom_asset': {
-      const abilitiesInput = Array.isArray(args.abilities) ? args.abilities.filter((a) => typeof a === 'string' && a.trim()) : [];
-      if (abilitiesInput.length === 0) return { error: 'A custom asset needs at least one ability.' };
-      if (customAssets.some((a) => a.Name.toLowerCase() === String(args.name).toLowerCase())) {
-        return { error: `A custom asset named "${args.name}" already exists.` };
-      }
-      const slug = String(args.name).replace(/[^a-zA-Z0-9]+/g, '_');
-      const newAsset = {
-        $id: `Custom/Assets/${args.category.replace(/\s+/g, '_')}/${slug}_${Date.now().toString(36)}`,
-        Name: args.name,
-        'Asset Type': args.category,
-        Requirement: args.requirement || undefined,
-        Display: { Color: args.color || '#8e97ac' },
-        Abilities: abilitiesInput.map((text, i) => ({ Text: text, Enabled: i === 0 })),
-      };
-      customAssets.push(newAsset);
-      return { asset: newAsset };
     }
     case 'set_sector_info': {
       try {

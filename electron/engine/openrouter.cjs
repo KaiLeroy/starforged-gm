@@ -35,7 +35,7 @@ const MAX_TOOL_ITERATIONS = 60;
  * the player; resuming (chat:resolve-choice) appends the real tool result for that toolCallId
  * and calls runTurn again to continue.
  */
-async function runTurn({ apiKey, model, messages, campaignState, customAssets = [], imageGen = null, temperature = null, topP = null, onEvent = () => {} }) {
+async function runTurn({ apiKey, model, messages, campaignState, imageGen = null, temperature = null, topP = null, onEvent = () => {} }) {
   const working = [...messages];
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
@@ -129,7 +129,7 @@ async function runTurn({ apiKey, model, messages, campaignState, customAssets = 
 
       let result;
       try {
-        result = await executeTool(call.function.name, args, campaignState, customAssets, imageGen);
+        result = await executeTool(call.function.name, args, campaignState, imageGen);
       } catch (err) {
         result = { error: err.message };
       }

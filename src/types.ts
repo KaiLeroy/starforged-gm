@@ -257,15 +257,6 @@ export type ChatEvent =
   | { type: 'assistant_message'; content: string }
   | { type: 'error'; message: string };
 
-export interface CustomAsset {
-  $id: string;
-  Name: string;
-  'Asset Type': string;
-  Requirement?: string;
-  Display: { Color: string };
-  Abilities: { Text: string; Enabled: boolean }[];
-}
-
 export interface CampaignSummary {
   campaignId: string;
   name: string;
@@ -295,10 +286,6 @@ export interface GameBridge {
   getAssetCatalog: () => Promise<CatalogAsset[]>;
   getMoves: () => Promise<MoveSummary[]>;
 
-  getCustomAssets: () => Promise<CustomAsset[]>;
-  createCustomAsset: (payload: { name: string; category: string; abilities: string[]; requirement?: string; color?: string }) => Promise<CustomAsset[]>;
-  updateCustomAsset: (payload: { id: string; name?: string; abilities?: string[]; requirement?: string; color?: string }) => Promise<CustomAsset[]>;
-  deleteCustomAsset: (payload: { id: string }) => Promise<CustomAsset[]>;
   sendMessage: (campaignId: string, text: string) => Promise<{ reply: string; state: CampaignState; pendingChoice: PendingChoice | null }>;
   undoLastTurn: (campaignId: string) => Promise<{ state: CampaignState; messages: ChatMessage[]; undoneUserText: string }>;
   resolveChoice: (campaignId: string, chosenText: string) => Promise<{ reply: string; state: CampaignState; pendingChoice: PendingChoice | null }>;

@@ -312,25 +312,13 @@ function truthCategoryNames() {
   return truths.map((t) => t.Name);
 }
 
-/** Finds a Setting Truth category by exact (case-insensitive) name. */
+/**
+ * Finds a Setting Truth category by exact (case-insensitive) name.
+ */
 function findTruthCategory(name) {
   const { truths } = loadData();
   const needle = normalize(name);
   return truths.find((t) => normalize(t.Name) === needle) || null;
-}
-
-/**
- * Finds an asset by id/name, checking a caller-supplied list of custom (homebrew) assets first,
- * then falling back to the official catalog. Custom assets are constructed with the exact same
- * shape as official Dataforged assets ($id, Name, 'Asset Type', Display.Color, Abilities[]), so
- * every consumer (buy_asset, upgrade_asset, the system prompt's ability listing) works on either
- * without caring which one it got.
- */
-function findAssetAnywhere(nameOrId, customAssets = []) {
-  const needle = normalize(nameOrId);
-  const customHit = customAssets.find((a) => a.$id === nameOrId || normalize(a.Name) === needle);
-  if (customHit) return customHit;
-  return findAsset(nameOrId);
 }
 
 module.exports = {
@@ -345,7 +333,6 @@ module.exports = {
   suggestOracles,
   allAssets,
   findAsset,
-  findAssetAnywhere,
   truthCategoryNames,
   findTruthCategory,
 };

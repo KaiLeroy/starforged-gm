@@ -47,14 +47,14 @@ electron/
     comfyui.cjs                ComfyUI HTTP client (workflow templating, submit/poll/fetch)
     openrouter.cjs             the tool-calling loop against the OpenRouter API
     systemPrompt.cjs            builds the GM system prompt from current state
-    store.cjs                   config, campaign saves, custom assets, image files
+    store.cjs                   config, campaign saves, image files
     __selftest__.cjs             `npm run test:engine`
     __selftest_openrouter_loop__.cjs  mocked-fetch tests against the tool-calling loop
     __selftest_comfyui__.cjs          mocked-fetch tests against the ComfyUI client
     __playtest_simulation__.cjs       `npm run playtest` -- a full simulated session
 data/dataforged/          the official ruleset JSON (moves, oracles, assets, truths)
 src/                       React renderer (chat log, character sheet, sector map,
-                            truths, moves panel, custom assets, campaign select)
+                            truths, moves panel, campaign select)
 ```
 
 ## Setup (Windows)
@@ -177,11 +177,10 @@ was confirmed to return the real, correct version and file hash.
 
 Core solo-play loop is feature-complete end to end -- session zero (Truths
 before character creation, matching the book's actual order) through
-advancement, a sector map, custom assets, AI image generation, multiple
-campaigns, and a structured move interface. This section covers the
-headline mechanics; session zero, multi-campaign, ComfyUI, custom assets,
-and the full rulebook accuracy pass each have their own dedicated section
-further down with the specifics.
+advancement, a sector map, AI image generation, multiple campaigns, and a
+structured move interface. This section covers the headline mechanics;
+session zero, multi-campaign, ComfyUI, and the full rulebook accuracy pass
+each have their own dedicated section further down with the specifics.
 
 - ✅ Action rolls, progress rolls, oracle rolls, Ask the Oracle, meters, momentum
   (including burning it and the negative-momentum penalty), progress tracks
@@ -1309,6 +1308,59 @@ wasn't.
 2 new tests covering every distinct case caught during verification,
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
+
+## Two real fixes from a fifth debug log, and the Custom Asset feature fully removed
+
+**A real bug: truths the player set manually were effectively ignored,
+not overridden by any explicit tool call.** A fifth uploaded debug log
+showed all 14 Setting Truth categories correctly present in the system
+prompt -- the player had set every one of them deliberately before play
+began -- but the opening scene's actual narration drew on almost none
+of them, inventing a generic sector, station, and antagonist instead of
+the specific, distinctive facts chosen (interdimensional invaders,
+alien gates, sentient AI, precursor ruins, the Soulbinders). Only one
+loosely-connected detail slipped through.
+
+Traced to a real, specific gap in the prompt itself, not a model-
+compliance issue: the branch handling freshly-rolled truths explicitly
+says to weave the result into the opening narration. The branch
+handling already-established truths -- this player's actual case, since
+they set all 14 manually -- only ever said not to re-roll them. Nothing
+told the model to actually use them in the opening scene. Fixed by
+adding the missing instruction, mirroring the fresh-truths branch's own
+pattern: when the campaign is opening and truths are already
+established, actively draw on several of them.
+
+**A second, smaller defect in that same output**: a literal, unfilled
+placeholder left visible in the narration -- "[my cat's name? --
+insert]" -- rather than either inventing a name outright or asking the
+player directly in plain prose. Added an explicit rule against this
+exact pattern.
+
+**The Custom Asset feature has been fully removed**, per the earlier
+decision that user-created assets can never get the kind of verified,
+per-item mechanical guidance this whole session's audits have been
+built around. Removed end to end: the tool and its schema, the
+`custom-assets:*` IPC handlers and preload exposure, the global
+homebrew library's persistence functions, the entire dedicated UI
+component and its toolbar button, related types, and every reference
+across roughly a dozen tests. `findAssetAnywhere` (the merged official-
+or-custom lookup) is gone too, replaced by the plain official-catalog
+lookup everywhere it was used.
+
+**A genuinely important catch during the removal, worth naming
+directly.** `buildSystemPrompt`'s signature lost its `customAssets`
+parameter, but one internal usage of that variable was still sitting in
+the function body -- syntactically valid, so `node --check` and the
+full test suite both passed clean, but it would have thrown a real
+`ReferenceError` the moment any actual gameplay turn reached that code
+path, since none of the existing tests exercised it. Caught only by a
+final, systematic grep sweep across the entire codebase for any
+remaining reference, rather than trusting a clean test run alone to
+mean the removal was complete.
+
+3 new tests for the truths/placeholder fixes. Full regression, syntax,
+types, build, and playtest all clean.
 
 ## The bare "roll_bonus_challenge_dice" log line -- a genuine display gap, and a systematic sweep found two more just like it
 

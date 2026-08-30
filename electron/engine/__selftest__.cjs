@@ -328,59 +328,6 @@ await check('earn_experience tool increases available experience', async () => {
   const r = await executeTool('earn_experience', { amount: 4, reason: 'test' }, cs);
   assert.strictEqual(r.total_available, 4);
 });
-await check('create_custom_asset builds an asset matching the official Dataforged shape', async () => {
-  const cs = state.newCampaignState();
-  const customAssets = [];
-  const r = await executeTool(
-    'create_custom_asset',
-    { name: 'Void Whisperer', category: 'Path', abilities: ['Ability one.', 'Ability two.'], requirement: 'Heard the void once.' },
-    cs,
-    customAssets
-  );
-  assert.ok(!r.error, r.error);
-  assert.strictEqual(customAssets.length, 1);
-  assert.strictEqual(r.asset.Name, 'Void Whisperer');
-  assert.strictEqual(r.asset['Asset Type'], 'Path');
-  assert.strictEqual(r.asset.Abilities.length, 2);
-  assert.strictEqual(r.asset.Abilities[0].Enabled, true);
-  assert.strictEqual(r.asset.Abilities[1].Enabled, false);
-});
-await check('create_custom_asset rejects a duplicate name and requires at least one ability', async () => {
-  const cs = state.newCampaignState();
-  const customAssets = [];
-  await executeTool('create_custom_asset', { name: 'Dupe', category: 'Path', abilities: ['x'] }, cs, customAssets);
-  const dupe = await executeTool('create_custom_asset', { name: 'Dupe', category: 'Path', abilities: ['y'] }, cs, customAssets);
-  assert.ok(dupe.error);
-  const noAbilities = await executeTool('create_custom_asset', { name: 'Empty', category: 'Path', abilities: [] }, cs, customAssets);
-  assert.ok(noAbilities.error);
-});
-await check('buy_asset finds a custom asset via the merged lookup and grants it identically to an official one', async () => {
-  const cs = state.newCampaignState();
-  const customAssets = [];
-  await executeTool('create_custom_asset', { name: 'Void Whisperer', category: 'Path', abilities: ['Ability one.'] }, cs, customAssets);
-  state.earnExperience(cs, 3);
-  const r = await executeTool('buy_asset', { asset_name: 'Void Whisperer' }, cs, customAssets);
-  assert.ok(!r.error, r.error);
-  assert.strictEqual(cs.character.assets[0].name, 'Void Whisperer');
-  assert.strictEqual(r.ability_text, 'Ability one.');
-});
-await check('upgrade_asset resolves ability text for an owned custom asset via the merged lookup', async () => {
-  const cs = state.newCampaignState();
-  const customAssets = [];
-  const created = await executeTool('create_custom_asset', { name: 'Void Whisperer', category: 'Path', abilities: ['One.', 'Two.'] }, cs, customAssets);
-  state.addAsset(cs, { id: created.asset.$id, name: created.asset.Name, category: 'Path' });
-  state.earnExperience(cs, 2);
-  const r = await executeTool('upgrade_asset', { asset_name: 'Void Whisperer', ability_number: 2 }, cs, customAssets);
-  assert.ok(!r.error, r.error);
-  assert.strictEqual(r.ability_text, 'Two.');
-});
-await check('data.findAssetAnywhere prefers a custom asset over an official one with a colliding name, and falls back correctly', async () => {
-  const customAssets = [{ $id: 'Custom/Assets/Path/Ace_x', Name: 'Ace', 'Asset Type': 'Path', Display: { Color: '#000' }, Abilities: [{ Text: 'Homebrew Ace.', Enabled: true }] }];
-  const hit = data.findAssetAnywhere('Ace', customAssets);
-  assert.strictEqual(hit.$id, 'Custom/Assets/Path/Ace_x');
-  const fallback = data.findAssetAnywhere('Bounty Hunter', customAssets);
-  assert.strictEqual(fallback.$id, 'Starforged/Assets/Path/Bounty_Hunter');
-});
 
 console.log('Multi-campaign storage');
 await check('listCampaigns / deleteCampaign round-trip against a real temp directory', async () => {
@@ -396,19 +343,6 @@ await check('listCampaigns / deleteCampaign round-trip against a real temp direc
     store.deleteCampaign(tmpDir, 'a');
     assert.deepStrictEqual(store.listCampaigns(tmpDir), ['b']);
     store.deleteCampaign(tmpDir, 'nonexistent'); // should not throw
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-});
-await check('loadCustomAssets defaults to an empty array and saveCustomAssets round-trips', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const tmpDir = fs.mkdtempSync(require('path').join(os.tmpdir(), 'sf-store-test-'));
-  try {
-    assert.deepStrictEqual(store.loadCustomAssets(tmpDir), []);
-    const list = [{ $id: 'x', Name: 'Test', 'Asset Type': 'Path', Display: { Color: '#fff' }, Abilities: [{ Text: 'a', Enabled: true }] }];
-    store.saveCustomAssets(tmpDir, list);
-    assert.deepStrictEqual(store.loadCustomAssets(tmpDir), list);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -455,20 +389,20 @@ function stubImageGen(buffer = Buffer.from('fake-bytes')) {
 }
 await check('reports a clean error when imageGen is not configured (null)', async () => {
   const cs = state.newCampaignState();
-  const r = await executeTool('generate_image', { target: 'illustration', prompt: 'a nebula' }, cs, [], null);
+  const r = await executeTool('generate_image', { target: 'illustration', prompt: 'a nebula' }, cs, null);
   assert.ok(r.error);
   assert.match(r.error, /not configured/);
 });
 await check('target "location" requires a cell', async () => {
   const cs = state.newCampaignState();
-  const r = await executeTool('generate_image', { target: 'location', prompt: 'a moon' }, cs, [], stubImageGen());
+  const r = await executeTool('generate_image', { target: 'location', prompt: 'a moon' }, cs, stubImageGen());
   assert.ok(r.error);
 });
 await check('target "connection" requires a connection_id, and rejects an unknown one', async () => {
   const cs = state.newCampaignState();
-  const r1 = await executeTool('generate_image', { target: 'connection', prompt: 'a face' }, cs, [], stubImageGen());
+  const r1 = await executeTool('generate_image', { target: 'connection', prompt: 'a face' }, cs, stubImageGen());
   assert.ok(r1.error);
-  const r2 = await executeTool('generate_image', { target: 'connection', prompt: 'a face', connection_id: 'nope' }, cs, [], stubImageGen());
+  const r2 = await executeTool('generate_image', { target: 'connection', prompt: 'a face', connection_id: 'nope' }, cs, stubImageGen());
   assert.ok(r2.error);
 });
 await check('portrait target calls comfyui, saves via the injected saveImage, and sets portraitImageId', async () => {
@@ -480,7 +414,7 @@ await check('portrait target calls comfyui, saves via the injected saveImage, an
   global.fetch = async () => {
     throw new Error('no server in this test');
   };
-  const r = await executeTool('generate_image', { target: 'portrait', prompt: 'a pilot' }, cs, [], gen);
+  const r = await executeTool('generate_image', { target: 'portrait', prompt: 'a pilot' }, cs, gen);
   global.fetch = realFetch;
   assert.ok(r.error); // expected, since there's no real server -- confirms the call path is wired, not broken
   assert.match(r.error, /no server in this test/);
@@ -498,22 +432,22 @@ await check('generate_image with a working stub saves the image and updates the 
   };
 
   const gen1 = stubImageGen();
-  const rPortrait = await executeTool('generate_image', { target: 'portrait', prompt: 'a pilot' }, cs, [], gen1);
+  const rPortrait = await executeTool('generate_image', { target: 'portrait', prompt: 'a pilot' }, cs, gen1);
   assert.ok(!rPortrait.error, rPortrait.error);
   assert.strictEqual(cs.character.portraitImageId, gen1._saved[0].id);
 
   const gen2 = stubImageGen();
-  const rLocation = await executeTool('generate_image', { target: 'location', prompt: 'a nebula', cell: '3,3' }, cs, [], gen2);
+  const rLocation = await executeTool('generate_image', { target: 'location', prompt: 'a nebula', cell: '3,3' }, cs, gen2);
   assert.ok(!rLocation.error, rLocation.error);
   assert.strictEqual(state.getSector(cs, null).cells['3,3'].imageId, gen2._saved[0].id);
 
   const gen3 = stubImageGen();
-  const rConn = await executeTool('generate_image', { target: 'connection', prompt: 'a face', connection_id: conn.id }, cs, [], gen3);
+  const rConn = await executeTool('generate_image', { target: 'connection', prompt: 'a face', connection_id: conn.id }, cs, gen3);
   assert.ok(!rConn.error, rConn.error);
   assert.strictEqual(cs.connections[0].imageId, gen3._saved[0].id);
 
   const gen4 = stubImageGen();
-  const rIllustration = await executeTool('generate_image', { target: 'illustration', prompt: 'a battle', caption: 'The battle of X' }, cs, [], gen4);
+  const rIllustration = await executeTool('generate_image', { target: 'illustration', prompt: 'a battle', caption: 'The battle of X' }, cs, gen4);
   assert.ok(!rIllustration.error, rIllustration.error);
   assert.strictEqual(cs.illustrations.length, 1);
   assert.strictEqual(cs.illustrations[0].imageId, gen4._saved[0].id);
@@ -3478,20 +3412,20 @@ await check("present_choice's move-selection extension uses a single, unified ax
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
 
-  const pDefault = buildSystemPrompt(cs); // no third arg at all
+  const pDefault = buildSystemPrompt(cs); // no second arg at all
   assert.ok(pDefault.includes("1e. present_choice isn't only for outcomes"));
   assert.ok(pDefault.includes("The player's current setting for this is: Almost Certain"), 'omitting the parameter entirely should default to the most permissive tier');
 
-  const pAlmostCertain = buildSystemPrompt(cs, [], 'almost_certain');
+  const pAlmostCertain = buildSystemPrompt(cs, 'almost_certain');
   assert.ok(pAlmostCertain.includes('The player\'s current setting for this is: Almost Certain'));
 
-  const pSmallChance = buildSystemPrompt(cs, [], 'small_chance');
+  const pSmallChance = buildSystemPrompt(cs, 'small_chance');
   assert.ok(pSmallChance.includes('The player\'s current setting for this is: Small Chance'));
 
-  const p5050 = buildSystemPrompt(cs, [], '50_50');
+  const p5050 = buildSystemPrompt(cs, '50_50');
   assert.ok(p5050.includes('The player\'s current setting for this is: 50-50'));
 
-  const pUnrecognized = buildSystemPrompt(cs, [], 'not_a_real_value');
+  const pUnrecognized = buildSystemPrompt(cs, 'not_a_real_value');
   assert.ok(pUnrecognized.includes('The player\'s current setting for this is: Almost Certain'), 'an unrecognized stored value should fall back to the most permissive tier, not a more restrictive one');
 
   // The corrected, unified model: a single plausibility-of-triviality axis, not two separate
@@ -3857,7 +3791,7 @@ await check("grant_asset is a real, working tool -- confirmed directly that it a
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
   const before = cs.character.experience.spent;
-  const result = await tools.executeTool('grant_asset', { asset_name: 'Oathbreaker' }, cs, []);
+  const result = await tools.executeTool('grant_asset', { asset_name: 'Oathbreaker' }, cs);
   assert.ok(cs.character.assets.some((a) => a.name === 'Oathbreaker'), 'the asset must actually be added to the character');
   assert.strictEqual(cs.character.experience.spent, before, 'granting must not spend any experience, unlike buy_asset');
   assert.ok(result.ability_text, 'the result should include the ability text the same way buy_asset does');
@@ -4424,6 +4358,31 @@ await check("the narration instruction gives a real, concrete length target and 
   assert.ok(prompt.includes("don't pad toward the target with observations or revelations the moment doesn't call for"));
   assert.ok(!prompt.includes('vividly, but concisely (a few sentences to a short paragraph, not an essay)'), 'the old, vague phrasing should be genuinely gone, not left alongside the new guidance');
   assert.ok(!prompt.includes('2-4 sentences for a routine beat'), 'the first-pass length target should be genuinely replaced, not left alongside the adjusted one');
+});
+
+console.log("A new debug log surfaced a real bug: the player had manually set all 14 Setting Truth categories before play began, but the opening scene's actual narration ignored nearly all of them, inventing entirely generic, unrelated detail instead (a made-up sector and station name, an unrelated antagonist) rather than drawing on the specific, distinctive facts the player chose (interdimensional invaders, alien gates, sentient AI, precursor ruins, the Soulbinders). Only one loosely connected detail (a 'black iron' vow) slipped through. Traced this to a genuine guidance gap, not a model-compliance issue: the fresh-truths branch of the prompt explicitly says to weave a newly-rolled truth into the opening narration, but the already-established branch (this player's actual case, since all 14 were already set) only ever said not to re-roll them -- never told the model to actually use them. Added the missing instruction, mirroring the fresh-truths branch's own pattern: when the campaign is opening and truths are already established, actively draw on several of them, not just whichever one happens to already fit. Separately, the same output left a literal, unfilled placeholder visible in the narration -- \"[my cat's name? -- insert]\" -- rather than either inventing a name or asking the player directly in plain prose. Added an explicit rule against this exact pattern.");
+await check("when Setting Truths are already established (the player's own real scenario -- manually set before play, not freshly rolled), the guidance now explicitly instructs weaving several of them into the opening narration, not just the passive 'don't re-roll' instruction that existed before and left the opening scene free to ignore them entirely", async () => {
+  const { buildSystemPrompt } = require('./systemPrompt.cjs');
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  const categories = data.truthCategoryNames();
+  for (const cat of categories) {
+    cs.truths[cat] = { result: 'Test result for ' + cat };
+  }
+  const prompt = buildSystemPrompt(cs);
+  assert.ok(prompt.includes('14/14 Setting Truth categories are already established'));
+  assert.ok(prompt.includes('the opening scene is exactly where that specific worldbuilding should actually show'));
+  assert.ok(prompt.includes('actively draw on several of the established truths'));
+  assert.ok(!prompt.includes('Roll the remaining ones when the fiction touches on that subject, rather than re-rolling what\'s already set.'), 'the old, passive-only instruction should be genuinely replaced, not left alongside the new guidance');
+});
+await check("the narration instruction now explicitly forbids leaving a literal, unfilled placeholder visible in the reply -- reproducing the exact real-world defect (\"[my cat's name? -- insert]\" left in a real playtest's actual output) rather than a generic, untested rule", async () => {
+  const { buildSystemPrompt } = require('./systemPrompt.cjs');
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  const prompt = buildSystemPrompt(cs);
+  assert.ok(prompt.includes('Never leave a literal placeholder in the reply itself'));
+  assert.ok(prompt.includes('[my companion\'s name?]'), 'should reference the actual real-world pattern observed, not just an abstract rule');
+  assert.ok(prompt.includes('never surface the bracket-and-question-mark itself as if it were finished prose'));
 });
 
 console.log(`\n${passed}/${total} checks passed.`);

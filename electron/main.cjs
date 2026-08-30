@@ -475,8 +475,6 @@ ipcMain.handle('campaign:new', (_evt, { campaignId, character, startingAssetIds 
     }
   }
 
-  const customAssets = store.loadCustomAssets(userDataDir());
-
   // Every Starforged character starts with a Starship (Command Vehicle asset) for free.
   // Guarded against duplicates -- now that this handler reuses an existing record rather than
   // always building a fresh one, a repeat call (e.g. an accidental double-click on "Begin
@@ -493,9 +491,9 @@ ipcMain.handle('campaign:new', (_evt, { campaignId, character, startingAssetIds 
   // not Deed, which every official Deed asset gates behind an in-play milestone like "once you
   // Forge a Bond..." or "once you fill N legacy-track boxes", making it impossible to have one
   // before the campaign starts) are free at character creation. The frontend enforces the 2+1
-  // split; custom (homebrew) assets are just as eligible as official ones here.
+  // split.
   for (const id of startingAssetIds) {
-    const asset = dataMod.findAssetAnywhere(id, customAssets);
+    const asset = dataMod.findAsset(id);
     if (asset && !state.character.assets.some((a) => a.id === asset.$id)) {
       stateMod.addAsset(state, { id: asset.$id, name: asset.Name, category: (asset['Asset Type'] || '').split('/').pop() });
     }
@@ -533,18 +531,6 @@ ipcMain.handle('assets:starting', () => {
       })),
     }));
 
-  const customAssets = store.loadCustomAssets(userDataDir()).filter((a) => startingCategories.includes(a['Asset Type']));
-  if (customAssets.length > 0) {
-    official.push({
-      category: 'Custom',
-      assets: customAssets.map((a) => ({
-        id: a.$id,
-        name: a.Name,
-        color: (a.Display && a.Display.Color) || null,
-        abilities: (a.Abilities || []).map((ab) => dataMod.stripCrossRefLinks(ab.Text)),
-      })),
-    });
-  }
   return official;
 });
 
@@ -599,63 +585,7 @@ ipcMain.handle('assets:catalog', () => {
       });
     }
   }
-  const customAssets = store.loadCustomAssets(userDataDir());
-  for (const a of customAssets) {
-    official.push({
-      id: a.$id,
-      name: a.Name,
-      category: a['Asset Type'] || 'Custom',
-      color: (a.Display && a.Display.Color) || null,
-      abilities: (a.Abilities || []).map((ab) => dataMod.stripCrossRefLinks(ab.Text)),
-    });
-  }
   return official;
-});
-
-// ---- IPC: custom (homebrew) asset library -- global, shared across campaigns ----
-ipcMain.handle('custom-assets:list', () => store.loadCustomAssets(userDataDir()));
-
-ipcMain.handle('custom-assets:create', (_evt, { name, category, abilities, requirement, color }) => {
-  const list = store.loadCustomAssets(userDataDir());
-  if (!name || !category || !Array.isArray(abilities) || abilities.filter((a) => a && a.trim()).length === 0) {
-    throw new Error('A custom asset needs a name, category, and at least one ability.');
-  }
-  if (list.some((a) => a.Name.toLowerCase() === name.toLowerCase())) {
-    throw new Error(`A custom asset named "${name}" already exists.`);
-  }
-  const slug = name.replace(/[^a-zA-Z0-9]+/g, '_');
-  const asset = {
-    $id: `Custom/Assets/${category.replace(/\s+/g, '_')}/${slug}_${Date.now().toString(36)}`,
-    Name: name,
-    'Asset Type': category,
-    Requirement: requirement || undefined,
-    Display: { Color: color || '#8e97ac' },
-    Abilities: abilities.filter((a) => a && a.trim()).map((text, i) => ({ Text: text, Enabled: i === 0 })),
-  };
-  list.push(asset);
-  store.saveCustomAssets(userDataDir(), list);
-  return list;
-});
-
-ipcMain.handle('custom-assets:update', (_evt, { id, name, abilities, requirement, color }) => {
-  const list = store.loadCustomAssets(userDataDir());
-  const asset = list.find((a) => a.$id === id);
-  if (!asset) throw new Error(`No custom asset with id "${id}".`);
-  if (name !== undefined) asset.Name = name;
-  if (requirement !== undefined) asset.Requirement = requirement || undefined;
-  if (color !== undefined) asset.Display = { Color: color };
-  if (Array.isArray(abilities)) {
-    const enabledFlags = asset.Abilities.map((a) => a.Enabled);
-    asset.Abilities = abilities.filter((a) => a && a.trim()).map((text, i) => ({ Text: text, Enabled: enabledFlags[i] ?? i === 0 }));
-  }
-  store.saveCustomAssets(userDataDir(), list);
-  return list;
-});
-
-ipcMain.handle('custom-assets:delete', (_evt, { id }) => {
-  const list = store.loadCustomAssets(userDataDir()).filter((a) => a.$id !== id);
-  store.saveCustomAssets(userDataDir(), list);
-  return list;
 });
 
 // ---- IPC: sector map (direct manual edits -- these don't touch the AI/chat loop) ----
@@ -997,12 +927,10 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
 
   record.messages.push({ role: 'user', content: text });
 
-  const customAssets = store.loadCustomAssets(userDataDir());
-
   // Regenerate the system prompt fresh every turn so it always reflects current state.
   // Compute the session gap BEFORE updating lastPlayedAt, so it reflects the gap since the
   // previous turn, not this one -- then mark this turn as "now" for the next comparison.
-  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, customAssets, config.moveChoiceThreshold) };
+  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, config.moveChoiceThreshold) };
   stateMod.markPlayed(record.state);
   const withSystem = [systemMessage, ...record.messages];
 
@@ -1019,7 +947,6 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
     model: config.model,
     messages: withSystem,
     campaignState: record.state,
-    customAssets,
     imageGen: buildImageGen(),
     temperature: config.temperature,
     topP: config.topP,
@@ -1051,7 +978,6 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
     // isn't a real narration yet -- just save what's there and hand the choice itself back to
     // the renderer so it can show the picker instead of treating this as a completed turn.
     saveCampaign(campaignId);
-    store.saveCustomAssets(userDataDir(), customAssets);
     return { reply: '', state: record.state, pendingChoice };
   }
 
@@ -1063,9 +989,6 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
   await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state });
 
   saveCampaign(campaignId);
-  // create_custom_asset (if the GM called it this turn) mutated `customAssets` in place --
-  // persist it back to the global library, separate from the per-campaign save above.
-  store.saveCustomAssets(userDataDir(), customAssets);
 
   const lastAssistant = [...updated].reverse().find((m) => m.role === 'assistant' && m.content);
   return { reply: lastAssistant ? lastAssistant.content : '', state: record.state, pendingChoice: null };
@@ -1107,8 +1030,7 @@ ipcMain.handle('chat:resolve-choice', async (evt, { campaignId = 'default', chos
   record.messages = [...record.messages, ...toolResults];
   record.pendingChoice = null;
 
-  const customAssets = store.loadCustomAssets(userDataDir());
-  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, customAssets, config.moveChoiceThreshold) };
+  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, config.moveChoiceThreshold) };
   const withSystem = [systemMessage, ...record.messages];
 
   const capturedEvents = [];
@@ -1122,7 +1044,6 @@ ipcMain.handle('chat:resolve-choice', async (evt, { campaignId = 'default', chos
     model: config.model,
     messages: withSystem,
     campaignState: record.state,
-    customAssets,
     imageGen: buildImageGen(),
     temperature: config.temperature,
     topP: config.topP,
@@ -1141,13 +1062,11 @@ ipcMain.handle('chat:resolve-choice', async (evt, { campaignId = 'default', chos
 
   if (nextPendingChoice) {
     saveCampaign(campaignId);
-    store.saveCustomAssets(userDataDir(), customAssets);
     return { reply: '', state: record.state, pendingChoice: nextPendingChoice };
   }
 
   await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state });
   saveCampaign(campaignId);
-  store.saveCustomAssets(userDataDir(), customAssets);
 
   const lastAssistant = [...updated].reverse().find((m) => m.role === 'assistant' && m.content);
   return { reply: lastAssistant ? lastAssistant.content : '', state: record.state, pendingChoice: null };

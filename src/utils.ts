@@ -145,10 +145,6 @@ export function formatToolCall(ev: TxEvent): FormattedTx {
     case 'add_log_entry': {
       return { label: `Log: ${r.text ?? ev.args.text}` };
     }
-    case 'create_custom_asset': {
-      if (r.error) return { label: `Create asset failed: ${r.error}` };
-      return { label: `Custom asset created: ${r.asset?.Name} (${r.asset?.['Asset Type']})` };
-    }
     case 'create_sector': {
       if (r.error) return { label: `Create sector failed: ${r.error}` };
       return { label: `Sector created: ${r.name || 'unnamed'} (${r.region || 'region unset'})` };
