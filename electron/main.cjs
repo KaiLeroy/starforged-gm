@@ -6,6 +6,7 @@ const fs = require('fs');
 const store = require('./engine/store.cjs');
 const stateMod = require('./engine/state.cjs');
 const dataMod = require('./engine/data.cjs');
+const dice = require('./engine/dice.cjs');
 const comfyui = require('./engine/comfyui.cjs');
 const { executeTool } = require('./engine/tools.cjs');
 const { buildSystemPrompt, DEFAULT_NARRATIVE_RULES } = require('./engine/systemPrompt.cjs');
@@ -909,6 +910,25 @@ ipcMain.handle('moves:list', () => {
     }
   }
   return out;
+});
+
+// ---- IPC: oracles (manual, player-initiated rolls -- separate from roll_oracle, which is the
+//      AI's own tool for weaving a result into ongoing narration; these are for a player who
+//      wants a quick, direct answer without waiting on or paying for a full AI turn) ----
+ipcMain.handle('oracles:list', () =>
+  dataMod.flattenOracles().map((o) => ({ id: o.id, name: o.name, path: o.path, displayTitle: o.displayTitle, description: o.description }))
+);
+
+ipcMain.handle('oracles:roll', (_evt, { oracleId }) => {
+  const oracle = dataMod.findOracle(oracleId);
+  if (!oracle) throw new Error(`No oracle found matching id "${oracleId}".`);
+  const result = dice.rollOracleTable(oracle.table);
+  return {
+    oracle: { id: oracle.id, name: oracle.name, path: oracle.path },
+    roll: result.roll,
+    isMatch: result.is_match,
+    result: result.row ? dataMod.stripCrossRefLinks(result.row.Result) : null,
+  };
 });
 
 // ---- IPC: images (portraits, locations, connections, story illustrations) ----

@@ -54,7 +54,8 @@ electron/
     __playtest_simulation__.cjs       `npm run playtest` -- a full simulated session
 data/dataforged/          the official ruleset JSON (moves, oracles, assets, truths)
 src/                       React renderer (chat log, character sheet, sector map,
-                            truths, Codex, Combat, moves panel, campaign select)
+                            truths, Codex, Combat, moves panel, Oracles panel,
+                            campaign select)
 ```
 
 ## Setup (Windows)
@@ -1308,6 +1309,46 @@ wasn't.
 2 new tests covering every distinct case caught during verification,
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
+
+## Third item on the 0.2 roadmap: an Oracles panel
+
+Grounded in the existing MovesPanel first, since it's the direct
+precedent -- but the design actually diverges from it in one
+important way. MovesPanel composes a chat message and lets the AI
+resolve the move; an Oracles panel exists specifically so a player
+can consult an oracle *without* going through the AI at all -- a
+direct, instant roll, no waiting on or spending a turn for it. The
+panel rolls immediately and shows the result right there, with an
+optional "Send to GM" step only if the player wants it woven into the
+ongoing story.
+
+**Two real bugs caught by testing the actual logic directly, not just
+checking syntax.** `node --check` passed cleanly on both, but neither
+handler would have worked the first time a player actually clicked
+"Roll": the new oracle-rolling handler referenced `dice.rollOracleTable`
+with no `dice.cjs` import anywhere in `main.cjs` at all (a genuine
+`ReferenceError` waiting to happen), and separately called
+`data.getOracleIndex()`, a real function that exists but was never
+exported -- only `findOracle`, `flattenOracles`, and `suggestOracles`
+are public. Both caught by actually running the handler's logic
+end-to-end against the real oracle catalog (all 250 tables) before
+trusting it, not by assuming a clean syntax check meant it worked.
+
+**Reused `flattenOracles()` and `findOracle()`** -- the same functions
+the AI's own `roll_oracle` tool already depends on -- rather than
+duplicate that lookup logic. Two new, genuinely stateless IPC
+handlers (no `campaignId` needed at all, since rolling an oracle
+doesn't mutate any campaign state): one to list the full catalog for
+the panel's own search/browse, one to roll a specific table by id.
+
+**New OraclesPanel**, reusing MovesPanel's own CSS classes directly
+rather than duplicating near-identical panel chrome -- searchable
+(essential at 250 entries, unlike Moves' much smaller, flatter list),
+grouped by top-level category derived from each oracle's own
+breadcrumb path, with the roll result and an optional "Send to GM"
+shown inline once rolled.
+
+Full regression, syntax, types, build, and playtest all clean.
 
 ## Second item on the 0.2 roadmap: a dedicated Combat/Encounter view
 

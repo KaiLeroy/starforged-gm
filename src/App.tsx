@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { CampaignRecord, ChatEvent, Config, MoveSummary, Stats, UpdaterStatus } from './types';
+import type { CampaignRecord, ChatEvent, Config, MoveSummary, OracleSummary, OracleRollResult, Stats, UpdaterStatus } from './types';
 import { CharacterSheet, ChatLog, Composer, NewCampaignModal, SettingsModal } from './components';
 import { DisplayMessage, TxEvent, parseDisplayMessages } from './utils';
 import { SectorView } from './SectorView';
@@ -8,6 +8,7 @@ import { CodexView } from './CodexView';
 import { CombatView } from './CombatView';
 import { SessionZeroTruths } from './SessionZeroTruths';
 import { MovesPanel } from './MovesPanel';
+import { OraclesPanel } from './OraclesPanel';
 import { ImageGallery } from './ImageGallery';
 import { CampaignSelect } from './CampaignSelect';
 
@@ -30,6 +31,8 @@ export default function App() {
   const [showGallery, setShowGallery] = useState(false);
   const [showMoves, setShowMoves] = useState(false);
   const [moves, setMoves] = useState<MoveSummary[]>([]);
+  const [showOracles, setShowOracles] = useState(false);
+  const [oracles, setOracles] = useState<OracleSummary[]>([]);
   const [view, setView] = useState<'story' | 'sector' | 'truths' | 'codex' | 'combat'>('story');
   const [sending, setSending] = useState(false);
   const [pendingEvents, setPendingEvents] = useState<TxEvent[]>([]);
@@ -43,6 +46,7 @@ export default function App() {
   useEffect(() => {
     window.game.getConfig().then(setConfig);
     window.game.getMoves().then(setMoves);
+    window.game.getOracles().then(setOracles);
   }, []);
 
   // Background update checking -- once shortly after launch (a short delay so it doesn't
@@ -247,6 +251,14 @@ export default function App() {
     handleSend(composed);
   };
 
+  const handleOracleSendToGM = (oracle: OracleSummary, result: OracleRollResult) => {
+    // Unlike a move (which the AI resolves itself), the oracle has already been rolled directly
+    // in the panel by the time this is called -- the message reports a settled fact for the AI
+    // to weave in, not something to re-roll or question. Doesn't close the panel, matching
+    // MovesPanel's own doIt(): a player may want to roll and send more than one in sequence.
+    handleSend(`I rolled on the "${oracle.name}" oracle and got: "${result.result}". Weave this into the story.`);
+  };
+
   const handleCreateCharacter = async (name: string, stats: Stats, startingAssetIds: string[], flavor: { callsign: string; pronouns: string; description: string }, backgroundVow: string) => {
     const record = await window.game.newCampaign({ campaignId, character: { name, stats, ...flavor }, startingAssetIds, backgroundVow });
     setCampaign(record);
@@ -306,6 +318,9 @@ export default function App() {
           </button>
           <button className="icon-btn" onClick={() => setShowMoves((v) => !v)} disabled={needsCharacter}>
             Moves
+          </button>
+          <button className="icon-btn" onClick={() => setShowOracles((v) => !v)} disabled={needsCharacter}>
+            Oracles
           </button>
           <button className="icon-btn" onClick={handleExportCharacter} disabled={needsCharacter}>
             Export Character
@@ -405,6 +420,7 @@ export default function App() {
       )}
 
       {showMoves && <MovesPanel moves={moves} onTrigger={handleMoveTrigger} onClose={() => setShowMoves(false)} />}
+      {showOracles && <OraclesPanel oracles={oracles} onSendToGM={handleOracleSendToGM} onClose={() => setShowOracles(false)} />}
       {showGallery && <ImageGallery state={campaign.state} onClose={() => setShowGallery(false)} />}
       {showSettings && <SettingsModal config={config} onSave={handleSaveConfig} onClose={() => setShowSettings(false)} campaignId={campaignId || 'default'} />}
       {needsCharacter && !showSettings && <NewCampaignModal onCreate={handleCreateCharacter} onOpenSettings={() => setShowSettings(true)} />}

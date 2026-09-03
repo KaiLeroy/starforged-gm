@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('game', {
   getStartingAssets: () => ipcRenderer.invoke('assets:starting'),
   getAssetCatalog: () => ipcRenderer.invoke('assets:catalog'),
   getMoves: () => ipcRenderer.invoke('moves:list'),
+  getOracles: () => ipcRenderer.invoke('oracles:list'),
+  rollOracle: (payload) => ipcRenderer.invoke('oracles:roll', payload),
 
   updateSectorCell: (payload) => ipcRenderer.invoke('sector:update-cell', payload),
   addSectorFeature: (payload) => ipcRenderer.invoke('sector:add-feature', payload),

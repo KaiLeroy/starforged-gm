@@ -147,6 +147,21 @@ export interface MoveSummary {
   outcomes: MoveOutcomes | null;
 }
 
+export interface OracleSummary {
+  id: string;
+  name: string;
+  path: string;
+  displayTitle: string | null;
+  description: string | null;
+}
+
+export interface OracleRollResult {
+  oracle: { id: string; name: string; path: string };
+  roll: number;
+  isMatch: boolean;
+  result: string | null;
+}
+
 export interface Truth {
   result: string;
   subtableResult: string | null;
@@ -296,6 +311,8 @@ export interface GameBridge {
   getStartingAssets: () => Promise<StartingAssetCategory[]>;
   getAssetCatalog: () => Promise<CatalogAsset[]>;
   getMoves: () => Promise<MoveSummary[]>;
+  getOracles: () => Promise<OracleSummary[]>;
+  rollOracle: (payload: { oracleId: string }) => Promise<OracleRollResult>;
 
   sendMessage: (campaignId: string, text: string) => Promise<{ reply: string; state: CampaignState; pendingChoice: PendingChoice | null }>;
   undoLastTurn: (campaignId: string) => Promise<{ state: CampaignState; messages: ChatMessage[]; undoneUserText: string }>;
