@@ -1301,7 +1301,14 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
   const [narrativeRules, setNarrativeRules] = useState(config.narrativeRules || '');
   const [defaultNarrativeRules, setDefaultNarrativeRules] = useState('');
   useEffect(() => {
-    window.game.getDefaultNarrativeRules().then(setDefaultNarrativeRules).catch(() => {});
+    window.game.getDefaultNarrativeRules().then((def) => {
+      setDefaultNarrativeRules(def);
+      // Only fills the box with the fetched default if the player has no real, saved override
+      // of their own -- if config.narrativeRules is already set, that's their actual customized
+      // text and this must never clobber it, regardless of how this effect's timing lines up
+      // against the initial render.
+      if (!config.narrativeRules) setNarrativeRules(def);
+    }).catch(() => {});
   }, []);
 
   const testConnection = async () => {
@@ -1423,23 +1430,24 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
           Narrative rules
         </p>
         <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: -4, marginBottom: 8 }}>
-          Controls the GM's own prose -- reply length, show-don't-tell, that sort of thing. Leave
-          blank to use the built-in default (shown below as a starting point). A non-blank value
-          replaces the default entirely rather than adding to it.
+          Controls the GM's own prose -- reply length, show-don't-tell, that sort of thing. Shown
+          below is the built-in default -- edit it directly to change how the GM writes, or leave
+          it as-is to keep using the default (including any future updates to it, since an
+          unedited default is never saved as a fixed copy).
         </p>
         <div className="field">
           <textarea
             value={narrativeRules}
             onChange={(e) => setNarrativeRules(e.target.value)}
-            placeholder={defaultNarrativeRules || 'Loading the built-in default…'}
+            placeholder={defaultNarrativeRules ? undefined : 'Loading the built-in default…'}
             rows={8}
             style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: 8, color: 'var(--text)', fontFamily: 'var(--font-mono)', fontSize: 11, resize: 'vertical' }}
           />
         </div>
         <button
           className="icon-btn"
-          onClick={() => setNarrativeRules('')}
-          disabled={!narrativeRules}
+          onClick={() => setNarrativeRules(defaultNarrativeRules)}
+          disabled={!defaultNarrativeRules || narrativeRules.trim() === defaultNarrativeRules.trim()}
           style={{ marginBottom: 16 }}
         >
           Reset to Default
@@ -1494,7 +1502,7 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
                 const n = parseFloat(trimmed);
                 return Number.isNaN(n) ? null : n;
               };
-              onSave({ apiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() || undefined });
+              onSave({ apiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() && narrativeRules.trim() !== defaultNarrativeRules.trim() ? narrativeRules.trim() : undefined });
             }}
           >
             Save

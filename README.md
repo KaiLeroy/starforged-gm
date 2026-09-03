@@ -1309,6 +1309,41 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Narrative rules box should show the actual default text, not leave it blank
+
+Direct follow-up: the box shouldn't start blank with the default only
+shown as grayed-out placeholder text -- it should actually contain the
+default, editable in place, with a real reset option if it changes.
+
+**The real risk this surfaced, worth catching before it shipped**: if
+the box always shows the default text and Save just writes whatever's
+in the box, then anyone who opens Settings and hits Save -- without
+touching this field at all -- would silently lock in a snapshot of
+today's default as a permanent override. That defeats the whole reason
+"unedited means use the default" mattered in the first place: this
+exact text has already been revised multiple times this session (the
+length target alone went through two real changes), and a player who
+never customizes this field should keep benefiting from that kind of
+future refinement, not get frozen on whatever wording happened to be
+current the first time they opened Settings.
+
+**Fixed by comparing against the live default at save time, not by
+checking for emptiness.** The box is now pre-filled with the real
+default once fetched -- but only when the player has no actual saved
+override already, so a returning player's real customization is never
+silently clobbered by the timing of that fetch. On Save, the typed
+text is only stored as an explicit override when it's genuinely
+different from the current default; if it matches (never touched, or
+edited back to match), nothing is saved at all and the player keeps
+tracking the live default going forward. "Reset to Default" now
+restores the actual default text into the box and disables itself
+once there's nothing left to reset.
+
+Traced all four real scenarios by hand (fresh player, an actual edit,
+resetting after an edit, a returning player with a real customization)
+against the updated logic before considering this done. TypeScript
+check, full build, and the complete engine test suite all clean.
+
 ## Narrative rules made genuinely player-editable through Settings
 
 Requested directly: single out a "narrative rules" prompt and make it
