@@ -1310,6 +1310,20 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## v0.2.0
+
+The four items on the 0.2 roadmap are all shipped -- the Codex, the
+Combat/Encounter view, the Oracles panel, and the small backlog
+(lastPlayedAt, image deletion, a readable export), each with its own
+detailed entry directly below this one. Rather than continue the
+0.1.x patch sequence for what amounts to a real, deliberate
+milestone, the version itself now reflects that: 0.2.0.
+
+Full regression, syntax, types, build, and playtest all clean --
+nothing about this bump is version-number-only under the hood; it
+went through the same verification pipeline as every other change
+this session.
+
 ## Closing out the small backlog: lastPlayedAt, image deletion, and a readable export -- all three, "none of them hard"
 
 Three items already agreed as small gaps, done together.
