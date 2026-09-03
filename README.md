@@ -54,7 +54,7 @@ electron/
     __playtest_simulation__.cjs       `npm run playtest` -- a full simulated session
 data/dataforged/          the official ruleset JSON (moves, oracles, assets, truths)
 src/                       React renderer (chat log, character sheet, sector map,
-                            truths, Codex, moves panel, campaign select)
+                            truths, Codex, Combat, moves panel, campaign select)
 ```
 
 ## Setup (Windows)
@@ -1308,6 +1308,50 @@ wasn't.
 2 new tests covering every distinct case caught during verification,
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
+
+## Second item on the 0.2 roadmap: a dedicated Combat/Encounter view
+
+Grounded in the actual state first, not assumed: combat position
+("in control" / "in a bad spot") and range ("close" / "distance")
+already exist as real, well-tested state (`setCombatPosition`,
+`setCombatRange`, both already covered by existing tests since they
+were first built) and already gate real mechanics -- which of four
+combat moves is even legal to make, and which stat Strike/Clash rolls.
+But neither had ANY presence in the UI at all before this -- not
+read-only, not editable, nothing. A confirmed, complete gap, not a
+partial one: `grep`ing for any manual IPC handler touching either
+field turned up zero results.
+
+**Scope decided deliberately, not just built maximally.** Progress
+tracks of every type (vows, expeditions, connections, and combat
+objectives alike) are read-only everywhere in this app today -- no
+manual edit path exists for any of them yet. Rather than have this
+one feature quietly introduce that capability only for combat tracks
+specifically (a real inconsistency with everything else), combat
+objectives stay read-only here too, just filtered and prominently
+shown. Position and range are different: two simple three-state
+toggles with zero prior UI to be inconsistent with, and exactly the
+state a real report called out as easy to lose track of scrolling
+back through chat -- so those two specifically got real manual edit
+support, backed by two new IPC handlers wrapping the same,
+already-tested state functions.
+
+**New dedicated Combat tab**, following the same pattern already used
+for Truths and the Codex: position and range shown and editable, with
+a plain-language summary of which moves are currently legal (derived
+from the same rules already encoded in the system prompt's own combat
+guidance, written here for a player rather than the model) and a
+filtered, read-only list of active combat objectives using the same
+track-card visual as the character sheet.
+
+Combat-type tracks removed from the sidebar's generic Progress Tracks
+list -- they have a real, better home now, matching the same
+no-duplicate-home decision already made for Truths and Campaign
+Elements.
+
+Full regression, syntax, types, build, and playtest all clean. No new
+backend logic needed testing -- `setCombatPosition`/`setCombatRange`
+were already solid; this only added a new manual entry point to them.
 
 ## A real Codex, built for 0.2 -- Campaign Elements upgraded from a flat list into a categorized, browsable, searchable feature
 

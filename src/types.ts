@@ -323,6 +323,8 @@ export interface GameBridge {
 
   addLogEntry: (payload: { campaignId: string; text: string }) => Promise<CampaignState>;
 
+  setCombatPosition: (payload: { campaignId: string; position: 'in_control' | 'bad_spot' | null }) => Promise<CampaignState>;
+  setCombatRange: (payload: { campaignId: string; range: 'close' | 'distance' | null }) => Promise<CampaignState>;
   createClock: (payload: { campaignId: string; name: string; type: 'campaign' | 'tension'; segments: 4 | 6 | 8 | 10 }) => Promise<CampaignState>;
   advanceClock: (payload: { campaignId: string; id: string; amount: number }) => Promise<CampaignState>;
   stopClock: (payload: { campaignId: string; id: string }) => Promise<CampaignState>;

@@ -180,7 +180,12 @@ function AssetCard({ asset, catalogEntry, campaignId, aboardVehicleId, onStateCh
 }
 
 export function CharacterSheet({ state, campaignId, onStateChange }: { state: CampaignState; campaignId: string; onStateChange: (s: CampaignState) => void }) {
-  const { character, progressTracks } = state;
+  const { character } = state;
+  // Combat-type tracks are deliberately excluded here -- they have their own dedicated Combat
+  // view now (position/range plus these same objectives, filtered and with move-legality
+  // context this generic list doesn't have room for), matching the same "no duplicate home"
+  // pattern already used for Truths and the Codex.
+  const progressTracks = state.progressTracks.filter((t) => t.type !== 'combat');
   const [assetCatalog, setAssetCatalog] = useState<CatalogAsset[]>([]);
   useEffect(() => {
     window.game.getAssetCatalog().then(setAssetCatalog);
