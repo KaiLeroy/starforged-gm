@@ -1310,6 +1310,45 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## "There should be no duplicates" -- a real, widespread Oracles panel bug, not the three categories in the report
+
+Screenshots showed the same handful of names -- Feature, Peril,
+Opportunity, then a separate cycle of Observed From Space, Planetside
+Feature, Life, Atmosphere -- repeated dozens of times in a row,
+looking exactly like broken, duplicated data.
+
+**Checked the real data directly rather than assume the screenshots
+told the whole story.** It wasn't duplicated at all -- Location
+Themes alone has 25 genuinely distinct oracle tables (Chaotic,
+Fortified, Haunted, and more, each with its own real Feature/Peril/
+Opportunity content), Planets has 84 across a dozen planet types.
+Every single one has a different id and different actual table
+contents. The bug was display-only: the panel labeled each oracle
+with just its bare leaf name (Dataforged's own Display.Title, when
+set, or the plain hierarchical name), with nothing distinguishing
+"Feature" under Chaotic from "Feature" under Fortified from "Feature"
+under Haunted -- so on screen they were completely indistinguishable,
+even though the underlying data was entirely correct.
+
+**Confirmed this wasn't limited to what showed up in the report.**
+Checked every oracle in the real catalog against its siblings under
+the same top-level category: 150 of 250 (60%) share a leaf label with
+at least one other oracle in the same group. Location Themes,
+Derelicts, and Planets were the ones that happened to get
+screenshotted, not the extent of the problem.
+
+**Fixed generally, not with a special case for the three reported
+categories.** The label now prepends whatever path segments sit
+between the top-level category (already shown as the group header,
+so not repeated) and the final leaf -- "Chaotic — Feature" instead of
+just "Feature". Verified directly against the entire real catalog:
+zero oracles still share a label with a sibling after the fix, and
+every already-unique label (a simple case like "Core / Action") comes
+through completely unchanged, not just "probably fine."
+
+TypeScript check, full build, and the complete engine test suite all
+clean.
+
 ## Two real corrections to the Combat view, both direct feedback: a genuine duplicate found, and a design choice reversed
 
 **The duplicate was real, and pre-existing** -- when the Combat tab

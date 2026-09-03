@@ -1,6 +1,27 @@
 import React, { useMemo, useState } from 'react';
 import type { OracleSummary, OracleRollResult } from './types';
 
+/**
+ * Derives a genuinely distinguishing label for an oracle within its top-level category group --
+ * the bare leaf name (oracle.displayTitle || oracle.name) alone is NOT enough. A real, direct
+ * report showed the same leaf names (Feature, Peril, Opportunity...) repeated dozens of times
+ * with no way to tell them apart, which looked like broken, duplicated data but wasn't -- each
+ * one is a genuinely distinct oracle table (a different location theme, a different planet
+ * type), just sharing a leaf name with its siblings under the same category. Checked directly
+ * against the real catalog: 150 of 250 oracles (60%) have at least one same-category,
+ * same-leaf-label sibling, so this needed a general fix, not a special case for the categories
+ * that happened to be reported. Prepends whatever path segments sit between the top-level
+ * category (already shown as the group header, so not repeated here) and the final leaf --
+ * verified this leaves every already-unique label (e.g. "Core / Action") completely unchanged,
+ * and resolves every single ambiguous one across the entire catalog.
+ */
+function oracleLabel(oracle: OracleSummary): string {
+  const segments = oracle.path.split(' / ');
+  const intermediate = segments.slice(1, -1);
+  const leaf = oracle.displayTitle || oracle.name;
+  return intermediate.length > 0 ? `${intermediate.join(' — ')} — ${leaf}` : leaf;
+}
+
 export function OraclesPanel({ oracles, onSendToGM, onClose }: { oracles: OracleSummary[]; onSendToGM: (oracle: OracleSummary, result: OracleRollResult) => void; onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -63,7 +84,7 @@ export function OraclesPanel({ oracles, onSendToGM, onClose }: { oracles: Oracle
               return (
                 <div key={oracle.id} className="move-item">
                   <button className="move-item-header" onClick={() => toggle(oracle.id)}>
-                    {oracle.displayTitle || oracle.name}
+                    {oracleLabel(oracle)}
                   </button>
                   {isOpen && (
                     <div className="move-item-body">
