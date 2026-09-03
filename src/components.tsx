@@ -1298,6 +1298,12 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
 
+  const [narrativeRules, setNarrativeRules] = useState(config.narrativeRules || '');
+  const [defaultNarrativeRules, setDefaultNarrativeRules] = useState('');
+  useEffect(() => {
+    window.game.getDefaultNarrativeRules().then(setDefaultNarrativeRules).catch(() => {});
+  }, []);
+
   const testConnection = async () => {
     setTestStatus('testing');
     setTestMessage('');
@@ -1414,6 +1420,32 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
         </button>
 
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginTop: 20, marginBottom: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+          Narrative rules
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: -4, marginBottom: 8 }}>
+          Controls the GM's own prose -- reply length, show-don't-tell, that sort of thing. Leave
+          blank to use the built-in default (shown below as a starting point). A non-blank value
+          replaces the default entirely rather than adding to it.
+        </p>
+        <div className="field">
+          <textarea
+            value={narrativeRules}
+            onChange={(e) => setNarrativeRules(e.target.value)}
+            placeholder={defaultNarrativeRules || 'Loading the built-in default…'}
+            rows={8}
+            style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: 8, color: 'var(--text)', fontFamily: 'var(--font-mono)', fontSize: 11, resize: 'vertical' }}
+          />
+        </div>
+        <button
+          className="icon-btn"
+          onClick={() => setNarrativeRules('')}
+          disabled={!narrativeRules}
+          style={{ marginBottom: 16 }}
+        >
+          Reset to Default
+        </button>
+
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginTop: 20, marginBottom: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
           Image generation (ComfyUI, optional)
         </p>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: -4, marginBottom: 10 }}>
@@ -1462,7 +1494,7 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
                 const n = parseFloat(trimmed);
                 return Number.isNaN(n) ? null : n;
               };
-              onSave({ apiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging });
+              onSave({ apiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() || undefined });
             }}
           >
             Save

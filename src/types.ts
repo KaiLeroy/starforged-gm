@@ -249,6 +249,12 @@ export interface Config {
   // guidance in the prompt) from a model failure (the guidance was correct and the model didn't
   // follow it) for any specific turn.
   debugLogging: boolean;
+  // Player-editable override for instruction 2's own narrative-style rules (length target,
+  // show-don't-tell, no unfilled placeholders) -- undefined/empty means "use the built-in
+  // default," fetched via game.getDefaultNarrativeRules() rather than duplicated here, so
+  // there's exactly one place that text actually lives. A non-empty value completely replaces
+  // the default rather than getting appended to it.
+  narrativeRules?: string;
 }
 
 export type ChatEvent =
@@ -268,6 +274,7 @@ export interface CampaignSummary {
 export interface GameBridge {
   getConfig: () => Promise<Config>;
   setConfig: (config: Config) => Promise<boolean>;
+  getDefaultNarrativeRules: () => Promise<string>;
   listCampaigns: () => Promise<string[]>;
   getCampaignSummaries: () => Promise<CampaignSummary[]>;
   getCampaign: (campaignId: string) => Promise<CampaignRecord>;

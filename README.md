@@ -1309,6 +1309,41 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Narrative rules made genuinely player-editable through Settings
+
+Requested directly: single out a "narrative rules" prompt and make it
+editable through Settings. Instruction 2 -- the length target, show-
+don't-tell principle, and no-unfilled-placeholders rule, all iterated
+on multiple times earlier this same session -- is the one cohesive,
+self-contained chunk of the system prompt that's actually about *how*
+to narrate, as opposed to which tool to call or what a specific move
+does. Kept the scope to exactly that, rather than also folding in
+other narrative-adjacent guidance scattered elsewhere in the numbered
+list (like leaning on the character's callsign and pronouns), since
+that would mix two different concerns into one editable field and
+make it a riskier thing for a player to safely customize.
+
+**Extracted into a real, exported DEFAULT_NARRATIVE_RULES constant**,
+with buildSystemPrompt accepting a player-supplied override that
+replaces it entirely (not appended alongside it) when non-blank.
+Verified byte-for-byte, not just "looks right" -- diffed the actual
+pre-edit file's real output against the post-edit version with no
+override supplied, via git, to confirm transcribing the text into the
+new constant introduced zero characters of drift.
+
+**Wired through end to end**: config.narrativeRules flows into both
+buildSystemPrompt call sites in main.cjs; a new IPC channel exposes
+the default text itself to the renderer, so Settings' "reset to
+default" button and its placeholder text both read from the one real
+copy of that text rather than a second, hand-duplicated one that could
+quietly drift from it over time. Settings gained a new "Narrative
+rules" section -- a textarea, blank by default (meaning "use the
+built-in rules," shown as placeholder text), completely replacing them
+when the player writes something of their own.
+
+2 new tests covering the override, empty, and whitespace-only cases.
+Full regression, syntax, types, build, and playtest all clean.
+
 ## Background update checking, and a single topbar button replacing the Settings-only manual check
 
 Requested directly: periodic, automatic update checking, plus a small,

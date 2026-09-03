@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('game', {
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (config) => ipcRenderer.invoke('config:set', config),
+  getDefaultNarrativeRules: () => ipcRenderer.invoke('config:get-default-narrative-rules'),
 
   listCampaigns: () => ipcRenderer.invoke('campaign:list'),
   getCampaignSummaries: () => ipcRenderer.invoke('campaign:summaries'),

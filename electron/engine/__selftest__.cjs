@@ -4410,6 +4410,29 @@ await check("a realistically large, multi-paragraph systemPrompt (well past what
   }
 });
 
+console.log("Extracted the narration length/style rules (instruction 2 -- length target, show-don't-tell, no unfilled placeholders) into a dedicated, exported DEFAULT_NARRATIVE_RULES constant and made buildSystemPrompt accept a player-supplied override, per a direct request to make this specific piece of the prompt editable through Settings. Verified byte-for-byte that building with no override produces character-for-character identical output to the prior, fully-hardcoded version, by diffing against the actual pre-edit file content via git rather than trusting the manual transcription into the new constant. A non-blank override completely replaces the default text rather than getting appended alongside it; a whitespace-only value is treated the same as blank, falling back to the default rather than sending the model an empty instruction 2. Wired through main.cjs (config.narrativeRules passed into both buildSystemPrompt call sites) and a new IPC channel exposing the default text itself to the Settings UI, so a 'reset to default' action and the placeholder text showing the built-in rules both read from this one real source rather than a second, hand-copied copy that could quietly drift from it.");
+await check("buildSystemPrompt with no narrativeRules override, or a whitespace-only one, falls back to the real DEFAULT_NARRATIVE_RULES text, and the exported constant itself is a real, substantial string, not an empty placeholder", async () => {
+  const { buildSystemPrompt, DEFAULT_NARRATIVE_RULES } = require('./systemPrompt.cjs');
+  assert.ok(DEFAULT_NARRATIVE_RULES.length > 500, 'the default text should be the real, substantial narration guidance, not a stub');
+  assert.ok(DEFAULT_NARRATIVE_RULES.includes('6-8 sentences'));
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  const noOverride = buildSystemPrompt(cs);
+  assert.ok(noOverride.includes(DEFAULT_NARRATIVE_RULES), 'omitting the override entirely should use the real default');
+  const emptyOverride = buildSystemPrompt(cs, 'almost_certain', '');
+  assert.ok(emptyOverride.includes(DEFAULT_NARRATIVE_RULES), 'an empty-string override should fall back to the default, not send an empty instruction 2');
+  const whitespaceOverride = buildSystemPrompt(cs, 'almost_certain', '   \n  ');
+  assert.ok(whitespaceOverride.includes(DEFAULT_NARRATIVE_RULES), 'a whitespace-only override should also fall back to the default, not a literal blank line');
+});
+await check("a real, non-blank narrativeRules override completely replaces the default text in the built prompt, rather than the default and the override both appearing", async () => {
+  const { buildSystemPrompt, DEFAULT_NARRATIVE_RULES } = require('./systemPrompt.cjs');
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  const custom = buildSystemPrompt(cs, 'almost_certain', '  Write everything as a single haiku, no exceptions.  ');
+  assert.ok(custom.includes('Write everything as a single haiku, no exceptions.'), 'the trimmed custom text should appear in the built prompt');
+  assert.ok(!custom.includes(DEFAULT_NARRATIVE_RULES), 'the default text should be genuinely gone, not left alongside the override');
+});
+
 console.log(`\n${passed}/${total} checks passed.`);
 if (process.exitCode) {
   console.error('SOME CHECKS FAILED -- see above.');

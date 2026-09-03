@@ -8,7 +8,7 @@ const stateMod = require('./engine/state.cjs');
 const dataMod = require('./engine/data.cjs');
 const comfyui = require('./engine/comfyui.cjs');
 const { executeTool } = require('./engine/tools.cjs');
-const { buildSystemPrompt } = require('./engine/systemPrompt.cjs');
+const { buildSystemPrompt, DEFAULT_NARRATIVE_RULES } = require('./engine/systemPrompt.cjs');
 const { runTurn } = require('./engine/openrouter.cjs');
 const summarizer = require('./engine/summarizer.cjs');
 const promptComposer = require('./engine/promptComposer.cjs');
@@ -287,6 +287,10 @@ ipcMain.handle('config:set', (_evt, config) => {
   store.saveConfig(userDataDir(), config);
   return true;
 });
+// Exposes the built-in narrative-rules text so the Settings UI has a real starting point to
+// show/edit and a real value to reset back to -- not a second, hand-copied version of the same
+// text that could quietly drift from systemPrompt.cjs's own copy over time.
+ipcMain.handle('config:get-default-narrative-rules', () => DEFAULT_NARRATIVE_RULES);
 
 // ---- IPC: campaigns ----
 ipcMain.handle('campaign:list', () => store.listCampaigns(userDataDir()));
@@ -941,7 +945,7 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
   // Regenerate the system prompt fresh every turn so it always reflects current state.
   // Compute the session gap BEFORE updating lastPlayedAt, so it reflects the gap since the
   // previous turn, not this one -- then mark this turn as "now" for the next comparison.
-  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, config.moveChoiceThreshold) };
+  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, config.moveChoiceThreshold, config.narrativeRules) };
   stateMod.markPlayed(record.state);
   const withSystem = [systemMessage, ...record.messages];
 
@@ -1041,7 +1045,7 @@ ipcMain.handle('chat:resolve-choice', async (evt, { campaignId = 'default', chos
   record.messages = [...record.messages, ...toolResults];
   record.pendingChoice = null;
 
-  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, config.moveChoiceThreshold) };
+  const systemMessage = { role: 'system', content: buildSystemPrompt(record.state, config.moveChoiceThreshold, config.narrativeRules) };
   const withSystem = [systemMessage, ...record.messages];
 
   const capturedEvents = [];
