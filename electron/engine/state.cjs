@@ -1329,6 +1329,43 @@ function removeIllustration(state, id) {
   if (state.illustrations.length === before) throw new Error(`No illustration with id "${id}".`);
 }
 
+/**
+ * Clears every reference to a given imageId anywhere in campaign state -- the character's own
+ * portrait, any connection's image, any sector cell's image, and any matching illustration
+ * entry (removed outright, not just cleared, since an illustration IS its image -- there's no
+ * meaningful "illustration with no image" the way a connection or a sector cell can still exist
+ * without one). Doesn't touch the actual image file on disk -- that's the caller's job (see
+ * store.deleteImage, already built but never actually wired up to anything before this), kept
+ * separate so this function stays a pure state operation, consistent with every other function
+ * in this file. Returns which categories actually had something to clear, so the caller can
+ * tell "genuinely deleted from N places" apart from "nothing referenced this id at all."
+ */
+function removeImageEverywhere(state, imageId) {
+  const cleared = [];
+  if (state.character.portraitImageId === imageId) {
+    state.character.portraitImageId = null;
+    cleared.push('portrait');
+  }
+  for (const c of state.connections) {
+    if (c.imageId === imageId) {
+      c.imageId = null;
+      cleared.push('connection');
+    }
+  }
+  for (const sector of Object.values(state.sectors)) {
+    for (const cell of Object.values(sector.cells)) {
+      if (cell.imageId === imageId) {
+        cell.imageId = null;
+        cleared.push('location');
+      }
+    }
+  }
+  const beforeIllustrations = state.illustrations.length;
+  state.illustrations = state.illustrations.filter((i) => i.imageId !== imageId);
+  if (state.illustrations.length !== beforeIllustrations) cleared.push('illustration');
+  return cleared;
+}
+
 module.exports = {
   newCampaignState,
   updateMeter,
@@ -1426,4 +1463,5 @@ module.exports = {
   setPortraitImage,
   addIllustration,
   removeIllustration,
+  removeImageEverywhere,
 };

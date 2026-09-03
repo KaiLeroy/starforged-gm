@@ -421,7 +421,7 @@ export default function App() {
 
       {showMoves && <MovesPanel moves={moves} onTrigger={handleMoveTrigger} onClose={() => setShowMoves(false)} />}
       {showOracles && <OraclesPanel oracles={oracles} onSendToGM={handleOracleSendToGM} onClose={() => setShowOracles(false)} />}
-      {showGallery && <ImageGallery state={campaign.state} onClose={() => setShowGallery(false)} />}
+      {showGallery && <ImageGallery state={campaign.state} campaignId={campaignId} onStateChange={(s) => setCampaign((prev) => (prev ? { ...prev, state: s } : prev))} onClose={() => setShowGallery(false)} />}
       {showSettings && <SettingsModal config={config} onSave={handleSaveConfig} onClose={() => setShowSettings(false)} campaignId={campaignId || 'default'} />}
       {needsCharacter && !showSettings && <NewCampaignModal onCreate={handleCreateCharacter} onOpenSettings={() => setShowSettings(true)} />}
     </div>

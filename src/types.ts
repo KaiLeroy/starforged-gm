@@ -288,6 +288,9 @@ export interface CampaignSummary {
   campaignName: string | null;
   sectorName: string;
   updatedAt: string | null;
+  // Distinct from updatedAt -- see the campaign:summaries handler's own comment. Null for a
+  // campaign that's had a character created but no actual turn played yet.
+  lastPlayedAt: string | null;
 }
 
 export interface GameBridge {
@@ -301,6 +304,7 @@ export interface GameBridge {
   renameCampaign: (payload: { campaignId: string; name: string }) => Promise<boolean>;
   duplicateCampaign: (payload: { campaignId: string }) => Promise<{ campaignId: string }>;
   exportCampaign: (payload: { campaignId: string }) => Promise<{ canceled: boolean; filePath?: string }>;
+  exportCampaignStory: (payload: { campaignId: string }) => Promise<{ canceled: boolean; filePath?: string }>;
   openExternalLink: (url: string) => Promise<{ opened: boolean; error?: string }>;
   revealDebugLog: (campaignId: string) => Promise<{ opened: boolean; path: string; fileNotYetCreated?: boolean }>;
   importCampaign: () => Promise<{ canceled: boolean; campaignId?: string }>;
@@ -370,6 +374,7 @@ export interface GameBridge {
   generateConnectionImage: (payload: { campaignId: string; connectionId: string; prompt: string }) => Promise<CampaignState>;
   generateIllustration: (payload: { campaignId: string; prompt: string; caption?: string }) => Promise<CampaignState>;
   removeIllustration: (payload: { campaignId: string; id: string }) => Promise<CampaignState>;
+  deleteImage: (payload: { campaignId: string; imageId: string }) => Promise<CampaignState>;
 
   onChatEvent: (callback: (event: ChatEvent & { campaignId: string }) => void) => () => void;
 }

@@ -34,9 +34,23 @@ function collectAllImages(state: CampaignState): GalleryEntry[] {
   return entries;
 }
 
-export function ImageGallery({ state, onClose }: { state: CampaignState; onClose: () => void }) {
+export function ImageGallery({ state, campaignId, onStateChange, onClose }: { state: CampaignState; campaignId: string; onStateChange: (s: CampaignState) => void; onClose: () => void }) {
   const entries = collectAllImages(state);
   const [lightbox, setLightbox] = useState<GalleryEntry | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const deleteEntry = async (imageId: string) => {
+    setBusy(true);
+    try {
+      const next = await window.game.deleteImage({ campaignId, imageId });
+      onStateChange(next);
+      setConfirmDelete(null);
+      if (lightbox?.imageId === imageId) setLightbox(null);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="modal-backdrop">
@@ -51,17 +65,41 @@ export function ImageGallery({ state, onClose }: { state: CampaignState; onClose
         ) : (
           <div style={{ overflowY: 'auto', flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
             {entries.map((entry, i) => (
-              <button
-                key={`${entry.imageId}-${i}`}
-                onClick={() => setLightbox(entry)}
-                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer', overflow: 'hidden', textAlign: 'left' }}
-              >
-                <GeneratedImage imageId={entry.imageId} alt={entry.label} style={{ width: '100%', height: 120, display: 'block' }} />
-                <div style={{ padding: '6px 8px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.label}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>{entry.category}</div>
-                </div>
-              </button>
+              <div key={`${entry.imageId}-${i}`} style={{ position: 'relative', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                <button
+                  onClick={() => setLightbox(entry)}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', textAlign: 'left', width: '100%', display: 'block' }}
+                >
+                  <GeneratedImage imageId={entry.imageId} alt={entry.label} style={{ width: '100%', height: 120, display: 'block' }} />
+                  <div style={{ padding: '6px 8px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.label}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>{entry.category}</div>
+                  </div>
+                </button>
+                {confirmDelete === entry.imageId ? (
+                  <div style={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 2 }}>
+                    <button
+                      className="icon-btn"
+                      style={{ fontSize: 10, padding: '2px 6px', borderColor: 'var(--danger)', color: 'var(--danger)', background: 'var(--bg-panel)' }}
+                      onClick={() => deleteEntry(entry.imageId)}
+                      disabled={busy}
+                    >
+                      Confirm
+                    </button>
+                    <button className="icon-btn" style={{ fontSize: 10, padding: '2px 6px', background: 'var(--bg-panel)' }} onClick={() => setConfirmDelete(null)}>
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDelete(entry.imageId)}
+                    title="Delete this image"
+                    style={{ position: 'absolute', top: 4, right: 4, fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-panel)', color: 'var(--text-dim)', cursor: 'pointer' }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -80,9 +118,27 @@ export function ImageGallery({ state, onClose }: { state: CampaignState; onClose
             <p style={{ color: 'var(--text)', marginTop: 10, fontSize: 13 }}>
               {lightbox.label} <span style={{ color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>· {lightbox.category}</span>
             </p>
-            <button className="icon-btn" onClick={() => setLightbox(null)}>
-              Close
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {confirmDelete === lightbox.imageId ? (
+                <>
+                  <button className="icon-btn" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }} onClick={() => deleteEntry(lightbox.imageId)} disabled={busy}>
+                    Confirm delete
+                  </button>
+                  <button className="icon-btn" onClick={() => setConfirmDelete(null)}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="icon-btn" onClick={() => setConfirmDelete(lightbox.imageId)}>
+                    Delete
+                  </button>
+                  <button className="icon-btn" onClick={() => setLightbox(null)}>
+                    Close
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

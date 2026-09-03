@@ -56,6 +56,15 @@ export function CampaignSelect({ onChoose, config, onSaveConfig }: { onChoose: (
     }
   };
 
+  const exportStoryOne = async (campaignId: string) => {
+    setBusyId(campaignId);
+    try {
+      await window.game.exportCampaignStory({ campaignId });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const importOne = async () => {
     setImportError(null);
     try {
@@ -76,7 +85,11 @@ export function CampaignSelect({ onChoose, config, onSaveConfig }: { onChoose: (
     );
   }
 
-  const sorted = [...summaries].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  // Prefers lastPlayedAt for the same reason the displayed text does -- otherwise briefly
+  // opening a manual-edit view (Codex, Combat) on one campaign could sort it above another
+  // actually played more recently, telling a different story than the text right below it.
+  const sortKey = (s: CampaignSummary) => s.lastPlayedAt || s.updatedAt || '';
+  const sorted = [...summaries].sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
 
   return (
     <div className="app-shell" style={{ gridTemplateColumns: '1fr', gridTemplateAreas: '"header" "main"' }}>
@@ -138,7 +151,11 @@ export function CampaignSelect({ onChoose, config, onSaveConfig }: { onChoose: (
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
                       {s.sectorName ? `${s.sectorName} · ` : ''}
-                      {s.updatedAt ? new Date(s.updatedAt).toLocaleString() : ''}
+                      {s.lastPlayedAt
+                        ? `Last played ${new Date(s.lastPlayedAt).toLocaleString()}`
+                        : s.updatedAt
+                          ? `Created ${new Date(s.updatedAt).toLocaleString()}`
+                          : ''}
                     </div>
                   </button>
                   {confirmDelete === s.campaignId ? (
@@ -161,6 +178,9 @@ export function CampaignSelect({ onChoose, config, onSaveConfig }: { onChoose: (
                       <button className="icon-btn" style={{ fontSize: 10 }} onClick={() => exportOne(s.campaignId)} disabled={busyId === s.campaignId} title="Export to a file">
                         ↓
                       </button>
+                      <button className="icon-btn" style={{ fontSize: 10 }} onClick={() => exportStoryOne(s.campaignId)} disabled={busyId === s.campaignId} title="Export as a readable story (Markdown) -- for sharing or reading, not re-importing">
+                        Story
+                      </button>
                       <button className="icon-btn" onClick={() => setConfirmDelete(s.campaignId)}>
                         Delete
                       </button>
@@ -178,7 +198,7 @@ export function CampaignSelect({ onChoose, config, onSaveConfig }: { onChoose: (
             + Start New Campaign
           </button>
           <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 10 }}>
-            Export/Import save the campaign's mechanics and story, but not generated images -- those live as separate files and won't travel with the export.
+            Export/Import save the campaign's mechanics and story, but not generated images -- those live as separate files and won't travel with the export. Story exports as a plain, readable document instead -- for sharing or reading, not re-importing.
           </p>
         </div>
       </div>

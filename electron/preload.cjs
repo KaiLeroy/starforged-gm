@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('game', {
   renameCampaign: (payload) => ipcRenderer.invoke('campaign:rename', payload),
   duplicateCampaign: (payload) => ipcRenderer.invoke('campaign:duplicate', payload),
   exportCampaign: (payload) => ipcRenderer.invoke('campaign:export', payload),
+  exportCampaignStory: (payload) => ipcRenderer.invoke('campaign:export-story', payload),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', url),
   revealDebugLog: (campaignId) => ipcRenderer.invoke('debugLog:reveal', { campaignId }),
   importCampaign: () => ipcRenderer.invoke('campaign:import'),
@@ -77,6 +78,7 @@ contextBridge.exposeInMainWorld('game', {
   generateConnectionImage: (payload) => ipcRenderer.invoke('images:generate-connection', payload),
   generateIllustration: (payload) => ipcRenderer.invoke('images:generate-illustration', payload),
   removeIllustration: (payload) => ipcRenderer.invoke('images:remove-illustration', payload),
+  deleteImage: (payload) => ipcRenderer.invoke('images:delete', payload),
 
   sendMessage: (campaignId, text) => ipcRenderer.invoke('chat:send', { campaignId, text }),
   undoLastTurn: (campaignId) => ipcRenderer.invoke('chat:undo', { campaignId }),

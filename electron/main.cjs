@@ -319,6 +319,7 @@ ipcMain.handle('campaign:summaries', () => {
     let campaignName = null;
     let sectorName = '';
     let updatedAt = null;
+    let lastPlayedAt = null;
     try {
       const record = campaigns.has(campaignId) ? campaigns.get(campaignId) : JSON.parse(fs.readFileSync(file, 'utf-8'));
       name = record.state.character.name || '';
@@ -326,10 +327,17 @@ ipcMain.handle('campaign:summaries', () => {
       const currentSector = record.state.sectors && record.state.sectors[record.state.currentSectorId];
       sectorName = (currentSector && currentSector.name) || '';
       updatedAt = fs.statSync(file).mtime.toISOString();
+      // Distinct from updatedAt on purpose -- updatedAt is the file's own mtime, which moves on
+      // ANY save (a migration running on load, one of the manual, non-AI edit IPC handlers like
+      // combat:set-position or campaignElements:add), not just real play. lastPlayedAt only
+      // moves via markPlayed(), called specifically on an actual chat:send/resolve-choice turn --
+      // a more meaningful answer to "when did I last actually play this" than the file's own
+      // technical last-write time.
+      lastPlayedAt = record.state.lastPlayedAt || null;
     } catch {
       // Corrupt or unreadable file -- still list it so the user can see and delete it.
     }
-    return { campaignId, name, campaignName, sectorName, updatedAt };
+    return { campaignId, name, campaignName, sectorName, updatedAt, lastPlayedAt };
   });
 });
 
@@ -386,6 +394,55 @@ ipcMain.handle('campaign:export', async (_evt, { campaignId }) => {
   // campaign on another machine (or after clearing image files) will have working mechanics but
   // missing pictures. Worth being upfront about rather than silently losing them.
   fs.writeFileSync(filePath, JSON.stringify(record, null, 2), 'utf-8');
+  return { canceled: false, filePath };
+});
+
+// A second, genuinely different export: not the re-importable save (state + raw message array,
+// meant for this app to read back in), but a plain-language document meant for a person to
+// actually read -- share with a friend, print, keep as a memento once a campaign wraps. Reuses
+// the same role-filtering logic the renderer's own parseDisplayMessages already applies for the
+// chat log display (user messages and non-empty assistant content are the readable story;
+// system/tool messages and tool_calls are internal mechanics, not narration) rather than
+// reinventing it differently here.
+ipcMain.handle('campaign:export-story', async (_evt, { campaignId }) => {
+  const record = loadCampaign(campaignId);
+  const { character, campaignName } = record.state;
+  const win = BrowserWindow.getFocusedWindow();
+  const defaultName = (campaignName || character.name || 'campaign').replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'campaign';
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export Readable Story',
+    defaultPath: `${defaultName}.md`,
+    filters: [{ name: 'Markdown document', extensions: ['md'] }],
+  });
+  if (canceled || !filePath) return { canceled: true };
+
+  const lines = [];
+  lines.push(`# ${campaignName || character.name || 'Untitled Campaign'}`);
+  if (campaignName && character.name) lines.push(`### ${character.name}`);
+  lines.push('');
+  lines.push(`*Exported ${new Date().toLocaleDateString()}*`);
+  lines.push('');
+  const flavorLine = [character.callsign, character.pronouns].filter(Boolean).join(' · ');
+  if (flavorLine) lines.push(`**${flavorLine}**`);
+  if (character.description) {
+    lines.push('');
+    lines.push(character.description);
+  }
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+  for (const msg of record.messages) {
+    if (msg.role === 'user' && msg.content) {
+      lines.push(`**You:** ${msg.content}`);
+      lines.push('');
+    } else if (msg.role === 'assistant' && msg.content) {
+      lines.push(msg.content);
+      lines.push('');
+    }
+    // system and tool messages, and assistant messages that are only tool_calls with no
+    // narration content, are deliberately skipped -- internal mechanics, not the story itself.
+  }
+  fs.writeFileSync(filePath, lines.join('\n'), 'utf-8');
   return { canceled: false, filePath };
 });
 
@@ -975,7 +1032,26 @@ ipcMain.handle('images:generate-illustration', async (_evt, { campaignId = 'defa
 
 ipcMain.handle('images:remove-illustration', (_evt, { campaignId = 'default', id }) => {
   const record = loadCampaign(campaignId);
+  // Look up the image id before removing the entry, so the underlying file can be deleted too --
+  // previously this only cleared the state reference, leaving the actual file orphaned on disk
+  // forever.
+  const illustration = record.state.illustrations.find((i) => i.id === id);
   stateMod.removeIllustration(record.state, id);
+  if (illustration) store.deleteImage(userDataDir(), illustration.imageId);
+  saveCampaign(campaignId);
+  return record.state;
+});
+
+// Deletes an image from wherever it's actually referenced (portrait, a connection, a sector
+// cell, or an illustration) and removes the underlying file -- store.deleteImage already existed
+// for this but was never actually wired up to anything before this. Used by the Image Gallery,
+// which is the one place every category of generated image is shown side by side and a "delete"
+// action needs to work the same regardless of which kind of image it's looking at.
+ipcMain.handle('images:delete', (_evt, { campaignId = 'default', imageId }) => {
+  const record = loadCampaign(campaignId);
+  const cleared = stateMod.removeImageEverywhere(record.state, imageId);
+  if (cleared.length === 0) throw new Error(`No image reference found for id "${imageId}".`);
+  store.deleteImage(userDataDir(), imageId);
   saveCampaign(campaignId);
   return record.state;
 });

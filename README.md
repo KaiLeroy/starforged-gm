@@ -1310,6 +1310,46 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Closing out the small backlog: lastPlayedAt, image deletion, and a readable export -- all three, "none of them hard"
+
+Three items already agreed as small gaps, done together.
+
+**lastPlayedAt was already tracked in campaign state but genuinely
+never surfaced anywhere.** Campaign Select showed a timestamp, but it
+was the save file's own disk mtime, not the purpose-built field --
+mtime moves on any write at all, including a migration running on
+load or one of this session's own manual, non-AI edit handlers
+(combat:set-position, campaignElements:add), not specifically real
+play. Both the displayed text and the sort order now prefer
+lastPlayedAt when available, falling back to mtime only for a
+brand-new campaign with no turn played yet.
+
+**Found a second, related gap while investigating image deletion**:
+store.cjs's own deleteImage function was real, already fully built --
+and never called anywhere in main.cjs at all. The existing
+images:remove-illustration handler only ever cleared the state
+reference, silently orphaning the actual file on disk forever every
+single time it was used. Fixed that handler directly, and built a
+new, more general removeImageEverywhere -- checked against all four
+real places an image can live (portrait, connection, sector cell,
+illustration), with a dedicated test for each -- for the Image
+Gallery, the one place every category is shown side by side and
+needs one delete action that works the same regardless of which kind
+it's looking at.
+
+**Readable export reuses the chat UI's own role-filtering logic**
+(user messages and non-empty assistant content are the story;
+system/tool messages and tool-call-only turns are internal mechanics)
+rather than reinventing it differently on the backend side. Verified
+directly against a realistic, multi-turn transcript including a tool
+call, a skipped tool result, and an empty final turn, before trusting
+the output. A second export option, genuinely different from the
+existing JSON save -- Markdown, meant for a person to read, not for
+this app to import back in.
+
+1 new test. Full regression, syntax, types, build, and playtest all
+clean.
+
 ## Third item on the 0.2 roadmap: an Oracles panel
 
 Grounded in the existing MovesPanel first, since it's the direct

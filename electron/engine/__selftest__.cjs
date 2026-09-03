@@ -4443,6 +4443,33 @@ await check("a real, non-blank narrativeRules value is genuinely additive -- app
   assert.ok(withAddition.indexOf(DEFAULT_NARRATIVE_RULES) < withAddition.indexOf('Always include a moment of dry humor.'), 'the addition should come after the default, not before it or interleaved with it');
 });
 
+console.log("Closed three real gaps in this session's 0.2 backlog, all previously agreed as small. lastPlayedAt was already tracked in campaign state but genuinely never surfaced anywhere -- Campaign Select showed a different, less meaningful signal instead (the save file's own disk mtime, which moves on any write at all -- a migration running on load, one of this session's own manual, non-AI edit handlers like combat:set-position -- not specifically real play). Both the displayed text and the sort order now prefer lastPlayedAt when available, falling back to the file's mtime only for a brand-new campaign with no turn played yet. Separately, found that store.cjs's own deleteImage function -- real, already fully built -- was never actually called anywhere in main.cjs at all; the existing images:remove-illustration handler only ever cleared the state reference, silently leaving the underlying file orphaned on disk forever. Fixed that handler directly, and built a new, more general removeImageEverywhere for the Image Gallery, which is the one place every category of image (portrait, connection, sector cell, illustration) is shown side by side and needs a single delete action that works the same regardless of which kind it's looking at.");
+await check("removeImageEverywhere correctly clears a matching reference from each of the four real places an image can live -- the character's own portrait, a connection, a sector cell, and an illustration entry (removed outright, not just cleared, since an illustration IS its image) -- and returns an empty list rather than erroring for an id nothing actually references", async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  cs.character.portraitImageId = 'img-portrait-1';
+  state.addConnection(cs, { name: 'Sune' });
+  cs.connections[0].imageId = 'img-connection-1';
+  const sector = cs.sectors['sector-1'];
+  sector.cells['0,0'] = { imageId: 'img-location-1', name: 'Test Hex' };
+  state.addIllustration(cs, { imageId: 'img-illustration-1', caption: 'Test scene' });
+  
+  assert.deepStrictEqual(state.removeImageEverywhere(cs, 'img-portrait-1'), ['portrait']);
+  assert.strictEqual(cs.character.portraitImageId, null);
+  
+  assert.deepStrictEqual(state.removeImageEverywhere(cs, 'img-connection-1'), ['connection']);
+  assert.strictEqual(cs.connections[0].imageId, null);
+  
+  assert.deepStrictEqual(state.removeImageEverywhere(cs, 'img-location-1'), ['location']);
+  assert.strictEqual(sector.cells['0,0'].imageId, null);
+  
+  assert.strictEqual(cs.illustrations.length, 1);
+  assert.deepStrictEqual(state.removeImageEverywhere(cs, 'img-illustration-1'), ['illustration']);
+  assert.strictEqual(cs.illustrations.length, 0, 'a matching illustration should be removed outright, not left behind with a null imageId');
+  
+  assert.deepStrictEqual(state.removeImageEverywhere(cs, 'img-does-not-exist-anywhere'), [], 'a non-matching id should return an empty list, not throw -- letting the caller decide whether that means an error');
+});
+
 console.log(`\n${passed}/${total} checks passed.`);
 if (process.exitCode) {
   console.error('SOME CHECKS FAILED -- see above.');
