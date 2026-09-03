@@ -402,13 +402,13 @@ export function formatToolCall(ev: TxEvent): FormattedTx {
       return r.error ? { label: `Remove flag failed: ${r.error}` } : { label: `Content flag cleared: ${ev.args.text}` };
     }
     case 'add_campaign_element': {
-      return r.error ? { label: `Add campaign element failed: ${r.error}` } : { label: `Campaign element added: ${r.text}` };
+      return r.error ? { label: `Add campaign element failed: ${r.error}` } : { label: `Codex entry added [${r.category}]: ${r.name}` };
     }
     case 'remove_campaign_element': {
-      return r.error ? { label: `Remove campaign element failed: ${r.error}` } : { label: `Campaign element removed` };
+      return r.error ? { label: `Remove campaign element failed: ${r.error}` } : { label: `Codex entry removed` };
     }
     case 'roll_campaign_element': {
-      return r.error ? { label: `Roll campaign element failed: ${r.error}` } : { label: `Campaign element: ${r.text}` };
+      return r.error ? { label: `Roll campaign element failed: ${r.error}` } : { label: `Codex roll [${r.category}]: ${r.name}` };
     }
     default:
       return { label: `${ev.name}` };

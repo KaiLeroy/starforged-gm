@@ -4,6 +4,7 @@ import { CharacterSheet, ChatLog, Composer, NewCampaignModal, SettingsModal } fr
 import { DisplayMessage, TxEvent, parseDisplayMessages } from './utils';
 import { SectorView } from './SectorView';
 import { TruthsView } from './TruthsView';
+import { CodexView } from './CodexView';
 import { SessionZeroTruths } from './SessionZeroTruths';
 import { MovesPanel } from './MovesPanel';
 import { ImageGallery } from './ImageGallery';
@@ -28,7 +29,7 @@ export default function App() {
   const [showGallery, setShowGallery] = useState(false);
   const [showMoves, setShowMoves] = useState(false);
   const [moves, setMoves] = useState<MoveSummary[]>([]);
-  const [view, setView] = useState<'story' | 'sector' | 'truths'>('story');
+  const [view, setView] = useState<'story' | 'sector' | 'truths' | 'codex'>('story');
   const [sending, setSending] = useState(false);
   const [pendingEvents, setPendingEvents] = useState<TxEvent[]>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -292,6 +293,9 @@ export default function App() {
             <button className={`view-tab ${view === 'truths' ? 'active' : ''}`} onClick={() => setView('truths')}>
               Truths
             </button>
+            <button className={`view-tab ${view === 'codex' ? 'active' : ''}`} onClick={() => setView('codex')}>
+              Codex
+            </button>
           </div>
           <button className="icon-btn" onClick={() => setCampaignId(null)}>
             Campaigns
@@ -382,9 +386,13 @@ export default function App() {
         <div className="main-col" style={{ padding: 0 }}>
           <SectorView state={campaign.state} campaignId={campaignId} onStateChange={(s) => setCampaign((prev) => (prev ? { ...prev, state: s } : prev))} />
         </div>
-      ) : (
+      ) : view === 'truths' ? (
         <div className="main-col" style={{ padding: 0 }}>
           <TruthsView state={campaign.state} campaignId={campaignId} onStateChange={(s) => setCampaign((prev) => (prev ? { ...prev, state: s } : prev))} />
+        </div>
+      ) : (
+        <div className="main-col" style={{ padding: 0 }}>
+          <CodexView state={campaign.state} campaignId={campaignId} onStateChange={(s) => setCampaign((prev) => (prev ? { ...prev, state: s } : prev))} />
         </div>
       )}
 

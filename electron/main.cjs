@@ -139,6 +139,22 @@ function loadCampaign(campaignId) {
   if (record.state && !record.state.campaignElements) {
     record.state.campaignElements = [];
   }
+  // Backward compatibility: campaignElements upgraded from a single freeform string ({id, text})
+  // into a real, categorized shape ({id, category, name, description}) -- an old entry has no
+  // way to know which category it actually belongs in (that information was never captured),
+  // so it goes to 'Other' rather than guessing, with its old text becoming the new name. The
+  // player can freely re-add it under a better category later if they want; this only needs to
+  // not crash the UI or the tool handlers that now expect the new shape.
+  if (record.state && record.state.campaignElements) {
+    for (const el of record.state.campaignElements) {
+      if (!('category' in el)) {
+        el.category = 'Other';
+        el.name = el.text;
+        el.description = '';
+        delete el.text;
+      }
+    }
+  }
   // Backward compatibility: campaigns saved before present_choice/pendingChoice existed won't
   // have the field at all -- default to null (no choice pending), same pattern as above. Note
   // this lives on `record` itself, not `record.state` -- it's about the conversation/turn
@@ -784,9 +800,11 @@ ipcMain.handle('flags:remove', (_evt, { campaignId = 'default', text }) => {
   return record.state;
 });
 
-ipcMain.handle('campaignElements:add', (_evt, { campaignId = 'default', text }) => {
+ipcMain.handle('campaignElements:categories', () => stateMod.CAMPAIGN_ELEMENT_CATEGORIES);
+
+ipcMain.handle('campaignElements:add', (_evt, { campaignId = 'default', category, name, description }) => {
   const record = loadCampaign(campaignId);
-  stateMod.addCampaignElement(record.state, text);
+  stateMod.addCampaignElement(record.state, category, name, description);
   saveCampaign(campaignId);
   return record.state;
 });

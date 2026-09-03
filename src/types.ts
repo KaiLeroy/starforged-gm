@@ -198,7 +198,11 @@ export interface CampaignState {
   illustrations: Illustration[];
   clocks: Clock[];
   flags: string[];
-  campaignElements: { id: string; text: string }[];
+  // category is intentionally typed as string, not a strict union -- the real, authoritative
+  // list of valid categories lives in state.cjs's CAMPAIGN_ELEMENT_CATEGORIES and is fetched at
+  // runtime via game.getCampaignElementCategories(), rather than duplicated here as a second,
+  // driftable copy.
+  campaignElements: { id: string; category: string; name: string; description: string }[];
   log: LogEntry[];
   storySummary: { recent: string; distant: string };
 }
@@ -336,8 +340,9 @@ export interface GameBridge {
 
   addFlagManual: (payload: { campaignId: string; text: string }) => Promise<CampaignState>;
   removeFlagManual: (payload: { campaignId: string; text: string }) => Promise<CampaignState>;
-  addCampaignElementManual: (payload: { campaignId: string; text: string }) => Promise<CampaignState>;
+  addCampaignElementManual: (payload: { campaignId: string; category: string; name: string; description?: string }) => Promise<CampaignState>;
   removeCampaignElementManual: (payload: { campaignId: string; id: string }) => Promise<CampaignState>;
+  getCampaignElementCategories: () => Promise<string[]>;
 
   testComfyConnection: () => Promise<unknown>;
   getImage: (imageId: string | null) => Promise<string | null>;

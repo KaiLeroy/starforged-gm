@@ -486,14 +486,18 @@ const TOOL_SCHEMAS = [
     function: {
       name: 'add_campaign_element',
       description:
-        'Adds an entry to the campaign elements table -- a player-curated list of story ingredients specific to ' +
-        "this campaign (people, factions, locations, troubles, quests, themes) used to answer \"what does this " +
-        'connect to?" with something already established, rather than generating something wholly new. Call this ' +
-        'when the player wants to record a new recurring element, or when building a starting table together.',
+        'Adds an entry to the campaign elements table -- a categorized, player-curated codex of story ' +
+        'ingredients specific to this campaign, used to answer "what does this connect to?" with something ' +
+        'already established, rather than generating something wholly new. Call this when the player wants to ' +
+        'record a new recurring element, or when building a starting table together.',
       parameters: {
         type: 'object',
-        properties: { text: { type: 'string', description: 'A short entry, e.g. "Faction: Silver Dominion" or "Trouble: Pirate Raids".' } },
-        required: ['text'],
+        properties: {
+          category: { type: 'string', enum: state.CAMPAIGN_ELEMENT_CATEGORIES, description: 'What kind of thing this is -- pick the closest fit; "Other" is a real, legitimate choice when nothing else fits well, not a fallback to avoid.' },
+          name: { type: 'string', description: 'A short name or label, e.g. "Silver Dominion" or "Kess Rendahl" -- not a full sentence.' },
+          description: { type: 'string', description: 'Optional: a bit more detail on what this is or why it matters, e.g. "ruthless mercenary captain, owes the player a debt".' },
+        },
+        required: ['category', 'name'],
       },
     },
   },
@@ -1730,7 +1734,7 @@ async function executeTool(name, args, campaignState, imageGen = null) {
     }
     case 'add_campaign_element': {
       try {
-        return state.addCampaignElement(campaignState, args.text);
+        return state.addCampaignElement(campaignState, args.category, args.name, args.description);
       } catch (e) {
         return { error: e.message };
       }

@@ -1221,12 +1221,22 @@ function removeFlag(state, text) {
   return state.flags;
 }
 
-// ---- Campaign Elements (a player-curated, campaign-specific answer table) ----
+// ---- Campaign Elements (a player-curated, campaign-specific answer table -- upgraded into a
+//      real, categorized Codex: each entry now carries a category and a name, with an optional
+//      description, rather than a single freeform string the player/AI had to informally prefix
+//      with a category label by convention (e.g. "Faction: Silver Dominion") ----
 
-function addCampaignElement(state, text) {
+const CAMPAIGN_ELEMENT_CATEGORIES = ['People', 'Factions', 'Locations', 'Threads', 'Items & Vehicles', 'Themes', 'Other'];
+
+function addCampaignElement(state, category, name, description = '') {
+  if (!CAMPAIGN_ELEMENT_CATEGORIES.includes(category)) {
+    throw new Error(`Unknown category "${category}". Expected one of: ${CAMPAIGN_ELEMENT_CATEGORIES.join(', ')}`);
+  }
+  if (!name || !name.trim()) throw new Error('A campaign element needs a name.');
   const id = `element-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  state.campaignElements.push({ id, text });
-  return { id, text };
+  const entry = { id, category, name: name.trim(), description: (description || '').trim() };
+  state.campaignElements.push(entry);
+  return entry;
 }
 
 function removeCampaignElement(state, id) {
@@ -1402,6 +1412,7 @@ module.exports = {
   addFlag,
   removeFlag,
   addCampaignElement,
+  CAMPAIGN_ELEMENT_CATEGORIES,
   removeCampaignElement,
   rollCampaignElement,
   createClock,

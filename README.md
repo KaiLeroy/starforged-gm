@@ -54,7 +54,7 @@ electron/
     __playtest_simulation__.cjs       `npm run playtest` -- a full simulated session
 data/dataforged/          the official ruleset JSON (moves, oracles, assets, truths)
 src/                       React renderer (chat log, character sheet, sector map,
-                            truths, moves panel, campaign select)
+                            truths, Codex, moves panel, campaign select)
 ```
 
 ## Setup (Windows)
@@ -1308,6 +1308,22 @@ wasn't.
 2 new tests covering every distinct case caught during verification,
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
+
+## A real Codex, built for 0.2 -- Campaign Elements upgraded from a flat list into a categorized, browsable, searchable feature
+
+The first of several 0.2 features, chosen deliberately first: this session's own history of continuity bugs (truths not making it into the opening scene, the vow rank-change gap, the misleading asset-bonus label) was the actual argument for building this -- a long campaign accumulates a lot of established state that only lives in prose, and a real place to check it against helps both the player and future debugging.
+
+**Grounded the design before touching code.** Campaign Elements already existed as a real, rulebook-based feature (Chapter 5, "More Oracle Options" -- confirmed via this project's own history, not re-derived from scratch) -- a flat list of `{id, text}` entries the AI could roll on to connect a new situation to something already established, with the category baked informally into the string itself (e.g. "Faction: Silver Dominion") rather than captured as real data. The rulebook PDFs in this project turned out to be image-only with no extractable text layer, so rather than detour into OCR for what is fundamentally a data-model and UI upgrade of an already-built, already-considered feature, the new category taxonomy was grounded in the app's own existing starter-set guidance instead.
+
+**New shape**: `{id, category, name, description}` across seven categories (People, Factions, Locations, Threads, Items & Vehicles, Themes, Other) -- `category` validated against a single, real, exported list (`state.cjs`'s `CAMPAIGN_ELEMENT_CATEGORIES`), never duplicated as a second copy anywhere else that could drift, including in the frontend's own TypeScript types.
+
+**Real migration, not just new-campaign support.** Existing saves have old-shape entries with no category information at all -- rather than guess, they migrate to `category: 'Other'` with the old text becoming `name`, following the exact same backward-compatibility pattern already established in `loadCampaign` for previous data-model changes (sector passages, the vehicle-troubles migration). Verified directly against a simulated old-shape save before trusting it.
+
+**A genuine dedicated view, not a slightly-improved sidebar chip list.** The old compact sidebar section is gone entirely -- following the same pattern already used for Truths (there's no separate `TruthsSection`; `TruthsView` is the only place truths live), Campaign Elements now has its own tab: grouped by category, filterable by a real search box, with name and description shown together per entry, and an add form with a real category dropdown fetched from the same single source of truth the backend validates against.
+
+**Every consumer touched, verified with a full sweep afterward, not assumed complete from the parts that were obviously changed**: both tools' schemas and handlers, the debug-log formatters, the system prompt's own display line and its 10-item starter-set guidance (now explicitly mapped onto the new categories), and two existing backend tests rewritten for the new shape with new coverage for the validation behavior that didn't exist before.
+
+2 tests rewritten, full regression, syntax, types, build, and playtest all clean.
 
 ## Narrative rules: reworked from a replaceable override into a genuine addition
 

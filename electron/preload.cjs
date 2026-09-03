@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('game', {
   removeFlagManual: (payload) => ipcRenderer.invoke('flags:remove', payload),
   addCampaignElementManual: (payload) => ipcRenderer.invoke('campaignElements:add', payload),
   removeCampaignElementManual: (payload) => ipcRenderer.invoke('campaignElements:remove', payload),
+  getCampaignElementCategories: () => ipcRenderer.invoke('campaignElements:categories'),
 
   testComfyConnection: () => ipcRenderer.invoke('comfy:test-connection'),
   getImage: (imageId) => ipcRenderer.invoke('images:get', { imageId }),

@@ -377,7 +377,6 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
       <ClocksSection state={state} campaignId={campaignId} onStateChange={onStateChange} />
       <IllustrationsSection state={state} campaignId={campaignId} onStateChange={onStateChange} />
       <FlagsSection state={state} campaignId={campaignId} onStateChange={onStateChange} />
-      <CampaignElementsSection state={state} campaignId={campaignId} onStateChange={onStateChange} />
       <LogSection state={state} campaignId={campaignId} onStateChange={onStateChange} />
     </>
   );
@@ -873,48 +872,6 @@ function FlagsSection({ state, campaignId, onStateChange }: { state: CampaignSta
       </div>
       <div style={{ display: 'flex', gap: 4 }}>
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. body horror" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14 }} />
-        <button className="icon-btn" onClick={add} disabled={!text.trim()}>
-          Add
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function CampaignElementsSection({ state, campaignId, onStateChange }: { state: CampaignState; campaignId: string; onStateChange: (s: CampaignState) => void }) {
-  const [text, setText] = useState('');
-
-  const add = async () => {
-    if (!text.trim()) return;
-    const next = await window.game.addCampaignElementManual({ campaignId, text: text.trim() });
-    onStateChange(next);
-    setText('');
-  };
-
-  const remove = async (id: string) => {
-    const next = await window.game.removeCampaignElementManual({ campaignId, id });
-    onStateChange(next);
-  };
-
-  return (
-    <div>
-      <p className="panel-title">Campaign Elements</p>
-      <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: -4, marginBottom: 6 }}>
-        Story ingredients specific to this campaign -- the GM can roll on these to connect a new situation to something already established.
-      </p>
-      {state.campaignElements.length === 0 && <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>None set yet.</p>}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-        {state.campaignElements.map((e) => (
-          <span key={e.id} style={{ fontSize: 13, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 4 }}>
-            {e.text}
-            <button onClick={() => remove(e.id)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12 }}>
-              ✕
-            </button>
-          </span>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 4 }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Faction: Silver Dominion" style={{ flex: 1, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 6px', fontSize: 14 }} />
         <button className="icon-btn" onClick={add} disabled={!text.trim()}>
           Add
         </button>

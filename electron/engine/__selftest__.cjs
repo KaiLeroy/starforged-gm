@@ -3287,32 +3287,40 @@ await check("the three site-specific expedition oracle mappings (derelict zones 
 });
 
 console.log("Implemented Campaign Elements as a real, complete feature -- a player-curated table of story ingredients specific to a campaign, distinct from the book's own fixed oracle tables, described in Chapter 5's 'More Oracle Options' section. Full stack: state (add/remove/roll, backed by the same crypto RNG as every other roll in this engine, not Math.random()), three tools tested through the real dispatcher, chat-log formatters confirmed against the complete tool list, system prompt guidance including the book's own ten-item starting suggestion and an End of Session pruning reminder, and a full frontend panel mirroring the existing Content Flags panel's structure. A real mistake happened mid-implementation and is worth being direct about: an edit meant to add the new component instead deleted several lines from the existing, unrelated FlagsSection, caught immediately by viewing the file right after the edit rather than assuming it worked, and fully repaired before continuing -- reverified with a complete type-check and test run before writing anything further, not just assumed fixed.");
-await check("the three campaign element state functions work correctly: adding generates unique ids, rolling only returns a real entry, removing an unknown id errors rather than silently no-op-ing, and rolling an empty table errors rather than crashing", async () => {
+await check("the campaign element state functions work correctly: adding generates unique ids and the real category/name/description shape, rejects an unknown category and a missing name, rolling only returns a real entry, removing an unknown id errors rather than silently no-op-ing, and rolling an empty table errors rather than crashing", async () => {
   const cs = state.newCampaignState();
   assert.deepStrictEqual(cs.campaignElements, []);
   assert.throws(() => state.rollCampaignElement(cs), /nothing to roll on/);
-  const e1 = state.addCampaignElement(cs, 'Theme: Redemption');
-  const e2 = state.addCampaignElement(cs, 'Faction: Silver Dominion');
+  assert.throws(() => state.addCampaignElement(cs, 'Not A Real Category', 'X'), /Unknown category/);
+  assert.throws(() => state.addCampaignElement(cs, 'Themes', ''), /needs a name/);
+  const e1 = state.addCampaignElement(cs, 'Themes', 'Redemption');
+  const e2 = state.addCampaignElement(cs, 'Factions', 'Silver Dominion', 'ruthless mercenary clan');
   assert.notStrictEqual(e1.id, e2.id);
+  assert.strictEqual(e1.category, 'Themes');
+  assert.strictEqual(e1.name, 'Redemption');
+  assert.strictEqual(e1.description, '', 'description should default to an empty string, not undefined, when omitted');
+  assert.strictEqual(e2.description, 'ruthless mercenary clan');
   const rolled = state.rollCampaignElement(cs);
   assert.ok(cs.campaignElements.some((e) => e.id === rolled.id));
   state.removeCampaignElement(cs, e1.id);
   assert.strictEqual(cs.campaignElements.length, 1);
   assert.throws(() => state.removeCampaignElement(cs, 'bogus'), /No campaign element/);
 });
-await check("all three campaign element tools work correctly through the real dispatcher, and the system prompt correctly displays both the empty and populated states", async () => {
+await check("all three campaign element tools work correctly through the real dispatcher with the categorized shape, and the system prompt correctly displays both the empty and populated states including the description", async () => {
   const cs = state.newCampaignState();
-  const r1 = await executeTool('add_campaign_element', { text: 'Trouble: Pirate Raids' }, cs);
-  assert.ok(!r1.error && r1.text === 'Trouble: Pirate Raids');
+  const r1 = await executeTool('add_campaign_element', { category: 'Threads', name: 'Pirate Raids', description: 'escalating, three ships sighted so far' }, cs);
+  assert.ok(!r1.error && r1.category === 'Threads' && r1.name === 'Pirate Raids');
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const emptyPrompt = buildSystemPrompt(state.newCampaignState());
   assert.ok(emptyPrompt.includes('none defined yet'));
   const populatedPrompt = buildSystemPrompt(cs);
-  assert.ok(populatedPrompt.includes('Trouble: Pirate Raids'));
+  assert.ok(populatedPrompt.includes('Threads: Pirate Raids (escalating, three ships sighted so far)'), 'the prompt should show category, name, and description together, not just the old flat text');
   const r2 = await executeTool('roll_campaign_element', {}, cs);
-  assert.ok(!r2.error && r2.text === 'Trouble: Pirate Raids');
+  assert.ok(!r2.error && r2.name === 'Pirate Raids' && r2.category === 'Threads');
   const r3 = await executeTool('remove_campaign_element', { id: r1.id }, cs);
   assert.ok(!r3.error && r3.campaign_elements.length === 0);
+  const badCategory = await executeTool('add_campaign_element', { category: 'Not A Real Category', name: 'X' }, cs);
+  assert.ok(badCategory.error, 'the tool dispatcher should surface the same category validation as a clean error, not throw');
 });
 
 console.log("Added Undo/Edit/Regenerate to the app itself, not the rules -- suggested and requested directly. A single-level, ephemeral checkpoint (never persisted to the save file) is taken in main.cjs immediately before each turn starts, letting the player roll back the most recent exchange's state changes and either resend the same text (Regenerate) or edit it first (Edit). Since main.cjs's IPC handlers can't be loaded outside the Electron runtime, the checkpoint/restore/single-use-consumption logic is verified here as a direct simulation mirroring its exact real semantics, rather than importing it -- the same approach already used elsewhere in this suite for IPC-layer logic. tsc caught one real type error mid-implementation (messages typed as unknown[] instead of ChatMessage[]) before it could reach runtime.");
