@@ -415,7 +415,7 @@ export default function App() {
         </div>
       ) : (
         <div className="main-col" style={{ padding: 0 }}>
-          <CombatView state={campaign.state} campaignId={campaignId} onStateChange={(s) => setCampaign((prev) => (prev ? { ...prev, state: s } : prev))} />
+          <CombatView state={campaign.state} />
         </div>
       )}
 

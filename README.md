@@ -1310,6 +1310,34 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Two real corrections to the Combat view, both direct feedback: a genuine duplicate found, and a design choice reversed
+
+**The duplicate was real, and pre-existing** -- when the Combat tab
+was built, the sidebar already had its own "Combat" section showing
+position and range, missed at the time. Worth noting what that
+existing section already said, verbatim: *"Set by the GM from how
+rolls actually go -- not something to override directly."* That was
+already the established, intended philosophy for this specific data
+before the new tab existed -- checking for it first would have meant
+never building the editable toggles in the first place. Removed the
+sidebar section entirely now that the dedicated tab is the one real
+home for it, matching the same pattern already used for Truths, the
+Codex, and combat objectives themselves.
+
+**The Combat tab is now fully read-only.** Position and range are
+plain display now, not toggle buttons -- reusing the sidebar's own
+former wording almost exactly, since it already said the right thing.
+Removed the manual, non-AI edit IPC handlers (combat:set-position,
+combat:set-range) and their preload/type plumbing entirely, since
+nothing calls them anymore -- confirmed with a full sweep, careful to
+leave the AI's own set_combat_position/set_combat_range tools and
+their existing tests completely untouched, since those are genuinely
+separate from what got removed.
+
+Full regression, syntax, types, build, and playtest all clean. Bundle
+size decreased slightly, consistent with removing rather than adding
+code.
+
 ## v0.2.0
 
 The four items on the 0.2 roadmap are all shipped -- the Codex, the

@@ -329,7 +329,7 @@ ipcMain.handle('campaign:summaries', () => {
       updatedAt = fs.statSync(file).mtime.toISOString();
       // Distinct from updatedAt on purpose -- updatedAt is the file's own mtime, which moves on
       // ANY save (a migration running on load, one of the manual, non-AI edit IPC handlers like
-      // combat:set-position or campaignElements:add), not just real play. lastPlayedAt only
+      // campaignElements:add or images:delete), not just real play. lastPlayedAt only
       // moves via markPlayed(), called specifically on an actual chat:send/resolve-choice turn --
       // a more meaningful answer to "when did I last actually play this" than the file's own
       // technical last-write time.
@@ -870,28 +870,6 @@ ipcMain.handle('campaignElements:add', (_evt, { campaignId = 'default', category
 ipcMain.handle('campaignElements:remove', (_evt, { campaignId = 'default', id }) => {
   const record = loadCampaign(campaignId);
   stateMod.removeCampaignElement(record.state, id);
-  saveCampaign(campaignId);
-  return record.state;
-});
-
-// ---- IPC: combat position/range (manual, non-AI edits) ----
-// Both are simple three-state toggles with zero existing UI anywhere in the app before this --
-// unlike progress tracks (vows, expeditions, connections, and combat objectives alike), which
-// stay AI-only/read-only in every view including this one, these two specifically get manual
-// edit support: the player correcting "I'm actually at close range now" or "I should be in
-// control after that hit" directly is low-risk (a plain enum, not a multi-field object) and
-// exactly the state a real playtest report called out as easy to lose track of scrolling
-// through chat.
-ipcMain.handle('combat:set-position', (_evt, { campaignId = 'default', position }) => {
-  const record = loadCampaign(campaignId);
-  stateMod.setCombatPosition(record.state, position);
-  saveCampaign(campaignId);
-  return record.state;
-});
-
-ipcMain.handle('combat:set-range', (_evt, { campaignId = 'default', range }) => {
-  const record = loadCampaign(campaignId);
-  stateMod.setCombatRange(record.state, range);
   saveCampaign(campaignId);
   return record.state;
 });

@@ -1,48 +1,10 @@
 import React from 'react';
 import type { CampaignState } from './types';
 
-function ToggleGroup<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T | null;
-  options: { value: T | null; label: string }[];
-  onChange: (v: T | null) => void;
-}) {
-  return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      {options.map((opt) => {
-        const active = opt.value === value;
-        return (
-          <button
-            key={String(opt.value)}
-            className="icon-btn"
-            onClick={() => onChange(opt.value)}
-            style={active ? { borderColor: 'var(--accent-copper)', color: 'var(--accent-copper)' } : undefined}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-export function CombatView({ state, campaignId, onStateChange }: { state: CampaignState; campaignId: string; onStateChange: (s: CampaignState) => void }) {
+export function CombatView({ state }: { state: CampaignState }) {
   const { combatPosition, combatRange } = state.character;
   const inFight = combatPosition !== null || combatRange !== null;
   const combatTracks = state.progressTracks.filter((t) => t.type === 'combat');
-
-  const setPosition = async (position: 'in_control' | 'bad_spot' | null) => {
-    const next = await window.game.setCombatPosition({ campaignId, position });
-    onStateChange(next);
-  };
-
-  const setRange = async (range: 'close' | 'distance' | null) => {
-    const next = await window.game.setCombatRange({ campaignId, range });
-    onStateChange(next);
-  };
 
   return (
     <div style={{ padding: '18px 28px', overflowY: 'auto', height: '100%' }}>
@@ -52,23 +14,17 @@ export function CombatView({ state, campaignId, onStateChange }: { state: Campai
       <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: -4, marginBottom: 16, maxWidth: 640 }}>
         Position and range decide which combat moves are actually legal to make right now, and
         this is the one piece of fight state with no other display in the app -- easy to lose
-        track of scrolling back through the chat log. The GM sets these automatically during
-        play; you can also correct them directly here.
+        track of scrolling back through the chat log. Set by the GM from how rolls actually go --
+        not something to change directly here.
       </p>
 
       <div className="track-card" style={{ padding: '10px 12px', marginBottom: 12 }}>
         <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--accent-copper)', textTransform: 'uppercase', marginBottom: 6 }}>
           Position
         </div>
-        <ToggleGroup
-          value={combatPosition}
-          onChange={setPosition}
-          options={[
-            { value: 'in_control', label: 'In control' },
-            { value: 'bad_spot', label: 'In a bad spot' },
-            { value: null, label: 'Not in a fight' },
-          ]}
-        />
+        <div style={{ padding: '4px 6px', borderRadius: 4, background: 'var(--bg-raised)', border: '1px solid var(--border)', fontSize: 13, display: 'inline-block' }}>
+          {combatPosition === 'in_control' ? 'In control' : combatPosition === 'bad_spot' ? 'In a bad spot' : 'Not in a fight'}
+        </div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, marginBottom: 0 }}>
           {combatPosition === 'in_control' && 'Gain Ground and Strike are available. React Under Fire and Clash are not.'}
           {combatPosition === 'bad_spot' && 'React Under Fire and Clash are available. Gain Ground and Strike are not. Take Decisive Action gets a downgrade: a strong hit becomes a weak hit and a weak hit becomes a miss, unless the strong hit has a match.'}
@@ -80,15 +36,9 @@ export function CombatView({ state, campaignId, onStateChange }: { state: Campai
         <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--accent-copper)', textTransform: 'uppercase', marginBottom: 6 }}>
           Range
         </div>
-        <ToggleGroup
-          value={combatRange}
-          onChange={setRange}
-          options={[
-            { value: 'close', label: 'Close' },
-            { value: 'distance', label: 'Distance' },
-            { value: null, label: 'Not set' },
-          ]}
-        />
+        <div style={{ padding: '4px 6px', borderRadius: 4, background: 'var(--bg-raised)', border: '1px solid var(--border)', fontSize: 13, display: 'inline-block' }}>
+          {combatRange === 'close' ? 'Close (+iron)' : combatRange === 'distance' ? 'Distance (+edge)' : 'Not set'}
+        </div>
         <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8, marginBottom: 0 }}>
           {combatRange === 'close' && 'Strike and Clash roll +iron.'}
           {combatRange === 'distance' && 'Strike and Clash roll +edge.'}

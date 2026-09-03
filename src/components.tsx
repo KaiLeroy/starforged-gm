@@ -259,27 +259,6 @@ export function CharacterSheet({ state, campaignId, onStateChange }: { state: Ca
       </div>
 
       <div>
-        <p className="panel-title">Combat</p>
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: -6, marginBottom: 6 }}>
-          Set by the GM from how rolls actually go -- not something to override directly.
-        </p>
-        <div style={{ display: 'flex', gap: 8, fontSize: 13 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: 'var(--text-dim)', marginBottom: 3 }}>Position</div>
-            <div style={{ padding: '4px 6px', borderRadius: 4, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
-              {character.combatPosition === 'in_control' ? 'In control' : character.combatPosition === 'bad_spot' ? 'Bad spot' : 'Not in a fight'}
-            </div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: 'var(--text-dim)', marginBottom: 3 }}>Range</div>
-            <div style={{ padding: '4px 6px', borderRadius: 4, background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
-              {character.combatRange === 'close' ? 'Close (+iron)' : character.combatRange === 'distance' ? 'Distance (+edge)' : 'Not in a fight'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div>
         <p className="panel-title">
           Experience ({character.experience.earned - character.experience.spent} available)
         </p>

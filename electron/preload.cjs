@@ -48,8 +48,6 @@ contextBridge.exposeInMainWorld('game', {
 
   addLogEntry: (payload) => ipcRenderer.invoke('log:add', payload),
 
-  setCombatPosition: (payload) => ipcRenderer.invoke('combat:set-position', payload),
-  setCombatRange: (payload) => ipcRenderer.invoke('combat:set-range', payload),
   createClock: (payload) => ipcRenderer.invoke('clocks:create', payload),
   advanceClock: (payload) => ipcRenderer.invoke('clocks:advance', payload),
   stopClock: (payload) => ipcRenderer.invoke('clocks:stop', payload),
