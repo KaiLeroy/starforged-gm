@@ -51,8 +51,14 @@ function buildSystemPrompt(campaignState, moveChoiceThreshold = 'almost_certain'
     .join('\n') || '(sector is unexplored so far)';
 
   const cellLabel = (cellId) => (cellId && currentSector.cells[cellId] ? `${cellId} "${currentSector.cells[cellId].name || 'unnamed'}"` : cellId);
+  const edgeLabel = (p) => {
+    if (p.toCell) return cellLabel(p.toCell);
+    if (!p.toSectorId) return '(edge of map -- onward to another sector, not yet linked to a specific destination)';
+    const dest = campaignState.sectors[p.toSectorId];
+    return `(edge of map -- linked to ${dest ? `"${dest.name || 'unnamed'}" (${p.toSectorId})` : `sector ${p.toSectorId}`})`;
+  };
   const sectorPassages = (currentSector.passages || [])
-    .map((p) => `- ${p.id}: ${cellLabel(p.fromCell)} ↔ ${p.toCell ? cellLabel(p.toCell) : '(edge of map -- onward to another sector)'}${p.notes ? ` -- ${p.notes}` : ''}`)
+    .map((p) => `- ${p.id}: ${cellLabel(p.fromCell)} ↔ ${edgeLabel(p)}${p.notes ? ` -- ${p.notes}` : ''}`)
     .join('\n') || '(none charted yet)';
 
   const otherSectorsSummary = Object.values(campaignState.sectors)
@@ -385,6 +391,7 @@ Your responsibilities:
     - Call reveal_location and/or add_location_feature whenever they discover or learn about a system, planet, station, derelict, faction presence, or other notable place. Roll the relevant oracle first (Planets, Settlements, Location Themes, Derelicts, Factions, Creatures, etc. -- see the Oracle Categories) rather than inventing details from nothing, then record what you rolled.
     - You don't need to map every empty hex passed through in transit, just places worth remembering.
     - A campaign isn't limited to one sector: "as you head out into the unknown, you can discover, explore, and name new sectors." When the party travels far enough that they're clearly leaving known space (not just moving within the current sector's map), call create_sector for the new one and switch_sector once they actually arrive. Each sector has its own independent hex grid -- reveal_location, add_location_feature, and set_current_location all operate on whichever sector is current unless you pass a sector_id explicitly.
+    - When that new sector exists specifically because the party traveled through an existing, charted passage that led off the edge of the map (its toCell was omitted when it was created) -- not just "they're heading somewhere new" in general -- pass that passage's id as via_passage_id to create_sector, linking the route to its actual destination in the same call rather than a separate link_passage_to_sector call for what's really one event. This only applies when a specific, already-charted passage is the actual reason for the new sector -- one created for some other reason (striking out in an uncharted direction via Undertake an Expedition, say) has no existing passage to link yet. link_passage_to_sector also exists standalone, for linking a passage after the fact if this was missed at creation time, or correcting one that turns out to point at the wrong sector.
     - Passages (charted routes, see below) determine which travel move actually applies -- this is a real rules distinction, not a narrative flourish: traveling between two locations already connected by a passage (check the passages list below) is what Set a Course resolves in a single roll. Traveling somewhere with NO existing passage between here and there -- genuinely uncharted space -- calls for Undertake an Expedition instead, which gives the journey more focus across multiple waypoint rolls and earns experience on success. The moment such an expedition is actually finished (Finish an Expedition, not just one waypoint roll along the way), call create_passage between the two locations -- the route is charted now, and future trips along it are ordinary Set a Course territory. Don't retroactively create a passage for a trip that was already treated as a routine Set a Course; passages only get created starting sectors (Step 7) or by successfully trailblazing one via a finished expedition.
 ${sectorSetupBlock}
 ${openingSceneBlock}

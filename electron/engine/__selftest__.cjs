@@ -2374,7 +2374,7 @@ await check('the ongoing (not just starting-sector) guidance correctly ties Set 
   assert.ok(prompt.includes('calls for Undertake an Expedition instead'));
   assert.ok(prompt.includes('call create_passage between the two locations'));
 });
-await check('the rendered prompt lists charted passages by name where known, and the edge-of-map case reads clearly rather than showing a bare null', () => {
+await check('the rendered prompt lists charted passages by name where known, the edge-of-map case reads clearly rather than showing a bare null, and a linked passage shows its actual destination sector while an unlinked one clearly says so', () => {
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
@@ -2382,9 +2382,15 @@ await check('the rendered prompt lists charted passages by name where known, and
   state.updateCell(cs, 'sector-1', '4,3', { name: 'Bleakhold' });
   state.createPassage(cs, 'sector-1', { fromCell: '2,2', toCell: '4,3', notes: 'trade route' });
   state.createPassage(cs, 'sector-1', { fromCell: '4,3', notes: 'leads onward' });
-  const prompt = buildSystemPrompt(cs);
-  assert.ok(prompt.includes('2,2 "Amity" ↔ 4,3 "Bleakhold" -- trade route'));
-  assert.ok(prompt.includes('(edge of map -- onward to another sector) -- leads onward'));
+  const unlinkedPrompt = buildSystemPrompt(cs);
+  assert.ok(unlinkedPrompt.includes('2,2 "Amity" ↔ 4,3 "Bleakhold" -- trade route'));
+  assert.ok(unlinkedPrompt.includes('(edge of map -- onward to another sector, not yet linked to a specific destination) -- leads onward'));
+
+  state.updateCell(cs, 'sector-1', '6,6', { name: 'The Beacon' });
+  const openPassage = state.createPassage(cs, 'sector-1', { fromCell: '6,6' });
+  const destSector = state.createSector(cs, { name: 'Kessel Reach', viaPassageId: openPassage.id });
+  const linkedPrompt = buildSystemPrompt(cs);
+  assert.ok(linkedPrompt.includes(`(edge of map -- linked to "Kessel Reach" (${destSector.id}))`), 'a linked passage should show the real destination sector\'s name and id, not just a generic edge-of-map note');
 });
 
 console.log("Two more real gaps in \"Build a Starting Sector,\" found by proactively re-checking the same section against the actual rulebook rather than waiting to be corrected a third time: Steps 8-9 (zoom in on a settlement, an unrolled automatic-strong-hit connection) had a vague placeholder instead of the real procedure, and Step 11's controlling-power instruction was completely absent despite the state field already existing");
@@ -4468,6 +4474,65 @@ await check("removeImageEverywhere correctly clears a matching reference from ea
   assert.strictEqual(cs.illustrations.length, 0, 'a matching illustration should be removed outright, not left behind with a null imageId');
   
   assert.deepStrictEqual(state.removeImageEverywhere(cs, 'img-does-not-exist-anywhere'), [], 'a non-matching id should return an empty list, not throw -- letting the caller decide whether that means an error');
+});
+
+console.log("Building toward 0.3: an Expanse-level view of how sectors actually connect to each other. The game already had a real, rulebook-grounded mechanism for this -- a map-edge passage (toCell: null, per 'Build a Starting Sector,' Step 7's 'connect a settlement to the edge of your sector map') -- but nothing captured WHICH specific sector that edge actually led to, and the sector map only ever drew it as a dead-end stub. Extended passages with a real toSectorId, settable both by the AI (create_sector's own viaPassageId convenience, for the common case of a new sector existing specifically because the party traveled through a known route -- one real event, not two separate tool calls) and by the player directly (linkPassageToSector, for linking one the AI never got around to, correcting a wrong link, or clearing one). Verified the full validation surface directly: a link can only ever apply to a genuine map-edge passage, never a passage with a real in-sector destination; a sector can't link to itself; and an unknown target sector is rejected cleanly, not silently accepted.");
+await check("createPassage's new toSectorId parameter works correctly at creation time, and is properly rejected when the passage actually has a real in-sector destination -- a toSectorId only ever makes sense for a genuine map-edge passage", async () => {
+  const cs = state.newCampaignState();
+  const originSectorId = cs.currentSectorId;
+  cs.sectors[originSectorId].cells['5,5'] = { name: 'Waypoint', notes: '', features: [], imageId: null };
+  cs.sectors[originSectorId].cells['2,2'] = { name: 'Other', notes: '', features: [], imageId: null };
+  const destSector = state.createSector(cs, { name: 'Destination' });
+  
+  const linked = state.createPassage(cs, originSectorId, { fromCell: '5,5', toCell: null, toSectorId: destSector.id });
+  assert.strictEqual(linked.toSectorId, destSector.id);
+  
+  const unlinked = state.createPassage(cs, originSectorId, { fromCell: '2,2', toCell: null });
+  assert.strictEqual(unlinked.toSectorId, null, 'toSectorId should default to null, not undefined, when not given');
+  
+  assert.throws(() => state.createPassage(cs, originSectorId, { fromCell: '5,5', toCell: '2,2', toSectorId: destSector.id }), /only applies to a map-edge passage/);
+});
+await check("createSector's viaPassageId automatically links the originating passage to the newly created sector -- the common case of a new sector existing specifically because the party traveled through a known route -- and linkPassageToSector correctly handles linking, relinking (a real correction), unlinking, and every real validation failure: an in-map passage, a self-link, and an unknown destination sector", async () => {
+  const cs = state.newCampaignState();
+  const originSectorId = cs.currentSectorId;
+  cs.sectors[originSectorId].cells['5,5'] = { name: 'Waypoint', notes: '', features: [], imageId: null };
+  cs.sectors[originSectorId].cells['2,2'] = { name: 'Other', notes: '', features: [], imageId: null };
+  const offMapPassage = state.createPassage(cs, originSectorId, { fromCell: '5,5', toCell: null });
+  const inMapPassage = state.createPassage(cs, originSectorId, { fromCell: '5,5', toCell: '2,2' });
+  
+  const newSector = state.createSector(cs, { name: 'Kessel Reach', viaPassageId: offMapPassage.id });
+  const afterAutoLink = cs.sectors[originSectorId].passages.find((p) => p.id === offMapPassage.id);
+  assert.strictEqual(afterAutoLink.toSectorId, newSector.id, 'createSector with viaPassageId should auto-link the origin passage to the new sector');
+  
+  const sectorB = state.createSector(cs, { name: 'Sector B' });
+  state.linkPassageToSector(cs, originSectorId, offMapPassage.id, sectorB.id);
+  assert.strictEqual(cs.sectors[originSectorId].passages.find((p) => p.id === offMapPassage.id).toSectorId, sectorB.id, 'a real correction -- relinking to a different sector -- should work directly');
+  state.linkPassageToSector(cs, originSectorId, offMapPassage.id, null);
+  assert.strictEqual(cs.sectors[originSectorId].passages.find((p) => p.id === offMapPassage.id).toSectorId, null, 'passing null should clear an existing link');
+  
+  assert.throws(() => state.linkPassageToSector(cs, originSectorId, inMapPassage.id, sectorB.id), /Only a map-edge passage/);
+  assert.throws(() => state.linkPassageToSector(cs, originSectorId, offMapPassage.id, originSectorId), /cannot link a sector to itself/);
+  assert.throws(() => state.linkPassageToSector(cs, originSectorId, offMapPassage.id, 'bogus-sector-id'), /No sector with id/);
+});
+await check("all three tools (create_passage, create_sector, link_passage_to_sector) work correctly through the real dispatcher, including the 'none' string sentinel link_passage_to_sector uses to clear a link -- the same established pattern set_combat_position already uses for its own nullable enum, not a raw null type in the tool schema", async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  const originSectorId = cs.currentSectorId;
+  cs.sectors[originSectorId].cells['5,5'] = { name: 'Waypoint', notes: '', features: [], imageId: null };
+  
+  const passage = await executeTool('create_passage', { from_cell: '5,5' }, cs);
+  assert.strictEqual(passage.toSectorId, null);
+  
+  const newSector = await executeTool('create_sector', { name: 'Kessel Reach', via_passage_id: passage.id }, cs);
+  assert.ok(!newSector.error);
+  const linkedAfterCreate = cs.sectors[originSectorId].passages.find((p) => p.id === passage.id);
+  assert.strictEqual(linkedAfterCreate.toSectorId, newSector.id, 'create_sector tool with via_passage_id should auto-link through the real dispatcher, not just the raw state function');
+  
+  const cleared = await executeTool('link_passage_to_sector', { passage_id: passage.id, to_sector_id: 'none' }, cs);
+  assert.strictEqual(cleared.toSectorId, null, "the 'none' sentinel string should translate to a real null, not be stored as the literal string");
+  
+  const badLink = await executeTool('link_passage_to_sector', { passage_id: passage.id, to_sector_id: 'totally-bogus-id' }, cs);
+  assert.ok(badLink.error, 'an unknown sector id should surface as a clean tool error, not throw past the dispatcher');
 });
 
 console.log(`\n${passed}/${total} checks passed.`);

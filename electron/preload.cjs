@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('game', {
   setSectorInfo: (payload) => ipcRenderer.invoke('sector:set-info', payload),
   createPassage: (payload) => ipcRenderer.invoke('sector:create-passage', payload),
   removePassage: (payload) => ipcRenderer.invoke('sector:remove-passage', payload),
+  linkPassage: (payload) => ipcRenderer.invoke('sector:link-passage', payload),
   createSector: (payload) => ipcRenderer.invoke('sector:create', payload),
   switchSector: (payload) => ipcRenderer.invoke('sector:switch', payload),
 

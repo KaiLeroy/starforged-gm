@@ -720,6 +720,13 @@ ipcMain.handle('sector:remove-passage', (_evt, { campaignId = 'default', sectorI
   return record.state;
 });
 
+ipcMain.handle('sector:link-passage', (_evt, { campaignId = 'default', sectorId = null, passageId, toSectorId }) => {
+  const record = loadCampaign(campaignId);
+  stateMod.linkPassageToSector(record.state, sectorId, passageId, toSectorId);
+  saveCampaign(campaignId);
+  return record.state;
+});
+
 ipcMain.handle('sector:set-info', (_evt, { campaignId = 'default', sectorId = null, name, region, factionControl, notes }) => {
   const record = loadCampaign(campaignId);
   stateMod.setSectorInfo(record.state, sectorId, { name, region, factionControl, notes });

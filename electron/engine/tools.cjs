@@ -673,13 +673,19 @@ const TOOL_SCHEMAS = [
       name: 'create_sector',
       description:
         'Creates a new, empty sector -- "as you head out into the unknown, you can discover, explore, and name new ' +
-        'sectors." Does not switch to it automatically; call switch_sector once the party actually arrives there.',
+        'sectors." Does not switch to it automatically; call switch_sector once the party actually arrives there. ' +
+        'If this new sector exists specifically because the party traveled through a charted, map-edge passage ' +
+        '(the common case), pass via_passage_id (and from_sector_id if it was charted somewhere other than the ' +
+        "current sector) to link that passage to this new sector automatically, rather than a separate " +
+        'link_passage_to_sector call for what is really one event.',
       parameters: {
         type: 'object',
         properties: {
           name: { type: 'string' },
           region: { type: 'string', enum: ['Terminus', 'Outlands', 'Expanse', 'Void'] },
           factionControl: { type: 'string' },
+          via_passage_id: { type: 'string', description: 'Optional -- the exact "id" of the map-edge passage (no toCell) the party traveled through to reach this new sector, if any. Links that passage to this new sector.' },
+          from_sector_id: { type: 'string', description: 'Optional -- which sector via_passage_id belongs to, if not the current sector.' },
         },
         required: ['name'],
       },
@@ -775,8 +781,31 @@ const TOOL_SCHEMAS = [
           to_cell: { type: 'string', description: 'Grid coordinate as "col,row". Omit entirely if this passage leads off the edge of the map to another sector.' },
           notes: { type: 'string', description: 'Optional flavor -- what this route is like, who uses it, etc.' },
           sector_id: { type: 'string', description: 'Optional -- defaults to the current sector.' },
+          to_sector_id: { type: 'string', description: 'Optional, only valid when to_cell is omitted -- which specific, already-existing sector this passage leads to, if that happens to already be known. Usually it is not known yet at creation time (the destination sector typically does not exist until the party actually travels there) -- link_passage_to_sector or create_sector\'s own via_passage_id are the normal way this gets set, not this parameter.' },
         },
         required: ['from_cell'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'link_passage_to_sector',
+      description:
+        'Sets, changes, or clears which specific sector a map-edge passage (one with no to_cell) actually leads ' +
+        'to -- the Expanse-level connection between sectors. Usually unnecessary at the moment a new sector is ' +
+        "created (create_sector's own via_passage_id already does this automatically for the common case of " +
+        'arriving somewhere new via a specific route); use this directly for linking a passage that was left ' +
+        'unlinked, correcting one that points at the wrong sector, or clearing one (pass null) that turns out to ' +
+        'be wrong.',
+      parameters: {
+        type: 'object',
+        properties: {
+          passage_id: { type: 'string', description: 'The exact "id" of the map-edge passage to link -- from create_passage\'s own result, never constructed or guessed.' },
+          to_sector_id: { type: 'string', description: 'The exact "id" of the destination sector, from create_sector\'s own result. Pass the literal string "none" to clear an existing link.' },
+          sector_id: { type: 'string', description: 'Optional -- which sector the passage itself belongs to, if not the current sector.' },
+        },
+        required: ['passage_id', 'to_sector_id'],
       },
     },
   },
@@ -1844,7 +1873,14 @@ async function executeTool(name, args, campaignState, imageGen = null) {
     }
     case 'create_passage': {
       try {
-        return state.createPassage(campaignState, args.sector_id || null, { fromCell: args.from_cell, toCell: args.to_cell || null, notes: args.notes });
+        return state.createPassage(campaignState, args.sector_id || null, { fromCell: args.from_cell, toCell: args.to_cell || null, notes: args.notes, toSectorId: args.to_sector_id || null });
+      } catch (e) {
+        return { error: e.message };
+      }
+    }
+    case 'link_passage_to_sector': {
+      try {
+        return state.linkPassageToSector(campaignState, args.sector_id || null, args.passage_id, args.to_sector_id === 'none' ? null : args.to_sector_id);
       } catch (e) {
         return { error: e.message };
       }
@@ -1858,7 +1894,7 @@ async function executeTool(name, args, campaignState, imageGen = null) {
     }
     case 'create_sector': {
       try {
-        return state.createSector(campaignState, { name: args.name, region: args.region, factionControl: args.factionControl });
+        return state.createSector(campaignState, { name: args.name, region: args.region, factionControl: args.factionControl, viaPassageId: args.via_passage_id || null, fromSectorId: args.from_sector_id || null });
       } catch (e) {
         return { error: e.message };
       }

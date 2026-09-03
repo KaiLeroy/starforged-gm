@@ -106,6 +106,10 @@ export interface Passage {
   fromCell: string;
   toCell: string | null; // null = leads off the edge of the map to another sector
   notes: string;
+  // Only ever meaningful when toCell is null -- which specific sector this map-edge passage
+  // actually leads to, once known. Usually null at first; set later via linkPassageToSector
+  // (state.cjs) once the destination is actually discovered.
+  toSectorId: string | null;
 }
 
 export interface Sector {
@@ -330,6 +334,7 @@ export interface GameBridge {
   setSectorInfo: (payload: { campaignId: string; sectorId?: string | null; name?: string; region?: string; factionControl?: string; notes?: string }) => Promise<CampaignState>;
   createPassage: (payload: { campaignId: string; sectorId?: string | null; fromCell: string; toCell?: string | null; notes?: string }) => Promise<CampaignState>;
   removePassage: (payload: { campaignId: string; sectorId?: string | null; passageId: string }) => Promise<CampaignState>;
+  linkPassage: (payload: { campaignId: string; sectorId?: string | null; passageId: string; toSectorId: string | null }) => Promise<CampaignState>;
   createSector: (payload: { campaignId: string; name: string; region?: string; factionControl?: string }) => Promise<CampaignState>;
   switchSector: (payload: { campaignId: string; sectorId: string }) => Promise<CampaignState>;
 

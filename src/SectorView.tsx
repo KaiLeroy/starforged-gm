@@ -220,15 +220,6 @@ export function SectorView({ state, campaignId, onStateChange }: { state: Campai
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '14px 20px 0', flexWrap: 'wrap' }}>
-          {Object.values(state.sectors).map((s) => (
-            <button
-              key={s.id}
-              className={`view-tab ${s.id === state.currentSectorId ? 'active' : ''}`}
-              onClick={() => switchTo(s.id)}
-            >
-              {s.name || 'Unnamed sector'}
-            </button>
-          ))}
           {showNewSector ? (
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               <input

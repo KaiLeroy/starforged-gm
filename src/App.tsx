@@ -6,6 +6,7 @@ import { SectorView } from './SectorView';
 import { TruthsView } from './TruthsView';
 import { CodexView } from './CodexView';
 import { CombatView } from './CombatView';
+import { ExpanseView } from './ExpanseView';
 import { SessionZeroTruths } from './SessionZeroTruths';
 import { MovesPanel } from './MovesPanel';
 import { OraclesPanel } from './OraclesPanel';
@@ -33,7 +34,7 @@ export default function App() {
   const [moves, setMoves] = useState<MoveSummary[]>([]);
   const [showOracles, setShowOracles] = useState(false);
   const [oracles, setOracles] = useState<OracleSummary[]>([]);
-  const [view, setView] = useState<'story' | 'sector' | 'truths' | 'codex' | 'combat'>('story');
+  const [view, setView] = useState<'story' | 'sector' | 'truths' | 'codex' | 'combat' | 'expanse'>('story');
   const [sending, setSending] = useState(false);
   const [pendingEvents, setPendingEvents] = useState<TxEvent[]>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -312,6 +313,9 @@ export default function App() {
             <button className={`view-tab ${view === 'combat' ? 'active' : ''}`} onClick={() => setView('combat')}>
               Combat
             </button>
+            <button className={`view-tab ${view === 'expanse' ? 'active' : ''}`} onClick={() => setView('expanse')}>
+              Expanse
+            </button>
           </div>
           <button className="icon-btn" onClick={() => setCampaignId(null)}>
             Campaigns
@@ -413,9 +417,13 @@ export default function App() {
         <div className="main-col" style={{ padding: 0 }}>
           <CodexView state={campaign.state} campaignId={campaignId} onStateChange={(s) => setCampaign((prev) => (prev ? { ...prev, state: s } : prev))} />
         </div>
-      ) : (
+      ) : view === 'combat' ? (
         <div className="main-col" style={{ padding: 0 }}>
           <CombatView state={campaign.state} />
+        </div>
+      ) : (
+        <div className="main-col" style={{ padding: 0 }}>
+          <ExpanseView state={campaign.state} campaignId={campaignId} onStateChange={(s) => setCampaign((prev) => (prev ? { ...prev, state: s } : prev))} />
         </div>
       )}
 

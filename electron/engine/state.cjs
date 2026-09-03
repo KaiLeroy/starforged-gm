@@ -703,10 +703,22 @@ function getSector(state, sectorId) {
 let sectorCounter = 0;
 /** Creates a new sector (doesn't switch to it -- call switchSector separately once the party
  *  actually arrives). Starts empty; populate it with reveal_location/add_location_feature. */
-function createSector(state, { name, region, factionControl }) {
+/**
+ * Creates a new sector (doesn't switch to it -- call switchSector separately once the party
+ * actually arrives). viaPassageId/fromSectorId (fromSectorId defaults to the current sector) are
+ * an optional convenience for the common case: a new sector being created specifically because
+ * the player traveled through a charted, previously-unlinked map-edge passage. When given, this
+ * links that passage to the new sector automatically (see linkPassageToSector), rather than
+ * requiring a second, separate call for what's really one real-world event -- arriving somewhere
+ * new via a specific, known route.
+ */
+function createSector(state, { name, region, factionControl, viaPassageId, fromSectorId }) {
   const id = `sector-${Date.now().toString(36)}${(sectorCounter++).toString(36)}`;
   const sector = newSector(id, { name, region, factionControl });
   state.sectors[id] = sector;
+  if (viaPassageId) {
+    linkPassageToSector(state, fromSectorId || state.currentSectorId, viaPassageId, id);
+  }
   return sector;
 }
 
@@ -801,21 +813,53 @@ let passageCounter = 0;
  *  destination anyone's charted a route to) -- toCell may be null for the map-edge case, but if
  *  given, it's validated the same way as fromCell. Passages are undirected: a route from A to B
  *  is the same route as B to A, so creating one that already exists (in either direction) just
- *  returns the existing one rather than duplicating it. */
-function createPassage(state, sectorId, { fromCell, toCell, notes }) {
+ *  returns the existing one rather than duplicating it.
+ *  toSectorId is the Expanse-level extension: which specific sector a map-edge passage actually
+ *  leads to, once that's known -- only ever meaningful when toCell is null (an in-sector passage
+ *  can't also point at a different sector), and usually not known yet at creation time, since the
+ *  destination sector typically doesn't exist until the player actually travels there. See
+ *  linkPassageToSector below for setting/correcting this after the fact, which is the common
+ *  case, not this parameter. */
+function createPassage(state, sectorId, { fromCell, toCell, notes, toSectorId }) {
   const sector = getSector(state, sectorId);
   assertValidCell(fromCell);
   if (!sector.cells[fromCell]) throw new Error(`"${fromCell}" hasn't been discovered yet -- a passage needs a real, known location on at least one end.`);
   if (toCell !== null && toCell !== undefined) {
     assertValidCell(toCell);
     if (!sector.cells[toCell]) throw new Error(`"${toCell}" hasn't been discovered yet -- a passage needs a real, known location on at least one end.`);
+    if (toSectorId) throw new Error('toSectorId only applies to a map-edge passage (no toCell) -- an in-sector passage stays within this sector by definition.');
   } else {
     toCell = null;
   }
+  if (toSectorId) {
+    if (toSectorId === sectorId) throw new Error('A passage cannot link a sector to itself.');
+    if (!state.sectors[toSectorId]) throw new Error(`No sector with id "${toSectorId}".`);
+  }
   const existing = sector.passages.find((p) => (p.fromCell === fromCell && p.toCell === toCell) || (p.fromCell === toCell && p.toCell === fromCell));
   if (existing) return existing;
-  const passage = { id: `p${Date.now().toString(36)}${(passageCounter++).toString(36)}`, fromCell, toCell, notes: notes || '' };
+  const passage = { id: `p${Date.now().toString(36)}${(passageCounter++).toString(36)}`, fromCell, toCell, notes: notes || '', toSectorId: toSectorId || null };
   sector.passages.push(passage);
+  return passage;
+}
+
+/**
+ * Sets, changes, or clears (toSectorId = null) which specific sector a map-edge passage leads
+ * to -- the actual Expanse-level connection. Both the AI and the player can call this: the AI
+ * typically via createSector's own viaPassageId convenience (below) at the moment a new sector
+ * is created because the player actually traveled through a specific passage, the player
+ * directly for corrections -- linking a passage the AI never got around to, fixing one that
+ * points at the wrong sector, or clearing one that turned out to be wrong.
+ */
+function linkPassageToSector(state, sectorId, passageId, toSectorId) {
+  const sector = getSector(state, sectorId);
+  const passage = sector.passages.find((p) => p.id === passageId);
+  if (!passage) throw new Error(`No passage "${passageId}" in this sector.`);
+  if (passage.toCell !== null) throw new Error('Only a map-edge passage (no toCell) can link to another sector.');
+  if (toSectorId) {
+    if (toSectorId === sectorId) throw new Error('A passage cannot link a sector to itself.');
+    if (!state.sectors[toSectorId]) throw new Error(`No sector with id "${toSectorId}".`);
+  }
+  passage.toSectorId = toSectorId || null;
   return passage;
 }
 
@@ -1414,6 +1458,7 @@ module.exports = {
   setCurrentCell,
   setCellImage,
   createPassage,
+  linkPassageToSector,
   removePassage,
   FEATURE_TYPES,
   setTruth,

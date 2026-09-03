@@ -54,8 +54,8 @@ electron/
     __playtest_simulation__.cjs       `npm run playtest` -- a full simulated session
 data/dataforged/          the official ruleset JSON (moves, oracles, assets, truths)
 src/                       React renderer (chat log, character sheet, sector map,
-                            truths, Codex, Combat, moves panel, Oracles panel,
-                            campaign select)
+                            truths, Codex, Combat, Expanse, moves panel, Oracles
+                            panel, campaign select)
 ```
 
 ## Setup (Windows)
@@ -1309,6 +1309,20 @@ wasn't.
 2 new tests covering every distinct case caught during verification,
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
+
+## The 0.3 headline: an Expanse view -- how sectors actually connect to each other, both AI- and player-editable
+
+Grounded in real, existing rules mechanics rather than invented from scratch: a map-edge passage (toCell: null, per "Build a Starting Sector," Step 7's own "connect a settlement to the edge of your sector map") already existed as the game's real mechanism for "this leads to another sector" -- the sector map already drew it as a dashed stub pointing outward. What didn't exist was any record of WHICH specific sector that stub actually led to, or any view showing how a growing campaign's sectors relate to each other at all.
+
+**Data model**: passages gained a real `toSectorId`, only ever meaningful on a genuine map-edge passage (validated directly -- an in-sector passage can't also point at a different sector, a sector can't link to itself, an unknown destination is rejected cleanly). Both the AI and the player can set it, per direct instruction: `create_sector` gained a `via_passage_id` convenience for the common case (a new sector existing specifically because the party traveled a known route -- one real event, not two separate tool calls), and a standalone `link_passage_to_sector` handles corrections either way, exposed identically to the AI as a tool and to the player as a manual IPC action.
+
+**A real gap found and fixed while verifying the AI side of this**: the passages list already shown to the AI in every system prompt had no way to display `toSectorId` at all -- even a fully-linked passage would have looked identical to an unlinked one, so the AI had no way to see the current state before deciding whether to link something. Fixed the prompt's own passage display to show the real destination sector's name when linked, or say plainly that it isn't yet -- verified directly against constructed linked and unlinked passages side by side in the same prompt, not just reasoned about.
+
+**A real design mistake caught before shipping, not after**: the first layout algorithm spread every node at a given tree depth evenly around the full circle regardless of which parent it actually connected to -- traced through an actual multi-branch scenario and confirmed it could place a child on the opposite side of the circle from its real parent, the connecting line cutting through unrelated nodes. Rewrote it as a proper radial subdivision, where each node's angular slice comes from subdividing its own parent's slice by descendant count -- verified directly this time: a parent's three children all land within a 160-degree arc centered on the parent's own direction, not scattered across 360 degrees.
+
+**New Expanse view**: sectors as nodes (the current one highlighted, any fully disconnected sector marked with a dashed border rather than blending in), linked passages as edges between them, laid out deterministically since Starforged sectors have no fixed spatial coordinates to reproduce -- only a legible relationship to represent. A dedicated "Open passages" list underneath is the actual control center for linking and correcting -- every map-edge passage across every sector in one place, matching the same no-duplicate-home pattern already used for Truths, the Codex, and Combat. The old flat button list for switching sectors, previously duplicated inside the Sector view itself, is retired now that this is its real home; sector creation stays where it was, since that's a genuinely different action.
+
+3 new tests (passage/sector linking end to end, including every real validation failure and the full tool dispatcher path), 1 existing test expanded for the new prompt display. Full regression, syntax, types, build, and playtest all clean.
 
 ## "There should be no duplicates" -- a real, widespread Oracles panel bug, not the three categories in the report
 
