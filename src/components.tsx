@@ -1301,14 +1301,7 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
   const [narrativeRules, setNarrativeRules] = useState(config.narrativeRules || '');
   const [defaultNarrativeRules, setDefaultNarrativeRules] = useState('');
   useEffect(() => {
-    window.game.getDefaultNarrativeRules().then((def) => {
-      setDefaultNarrativeRules(def);
-      // Only fills the box with the fetched default if the player has no real, saved override
-      // of their own -- if config.narrativeRules is already set, that's their actual customized
-      // text and this must never clobber it, regardless of how this effect's timing lines up
-      // against the initial render.
-      if (!config.narrativeRules) setNarrativeRules(def);
-    }).catch(() => {});
+    window.game.getDefaultNarrativeRules().then(setDefaultNarrativeRules).catch(() => {});
   }, []);
 
   const testConnection = async () => {
@@ -1430,27 +1423,36 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
           Narrative rules
         </p>
         <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: -4, marginBottom: 8 }}>
-          Controls the GM's own prose -- reply length, show-don't-tell, that sort of thing. Shown
-          below is the built-in default -- edit it directly to change how the GM writes, or leave
-          it as-is to keep using the default (including any future updates to it, since an
-          unedited default is never saved as a fixed copy).
+          Controls the GM's own prose -- reply length, show-don't-tell, that sort of thing. The
+          built-in default below always applies; anything written in the second box is genuinely
+          additive -- extra guidance layered on top, not a replacement for any of it.
         </p>
         <div className="field">
+          <label>Built-in default (always applies)</label>
+          <textarea
+            value={defaultNarrativeRules || 'Loading…'}
+            disabled
+            rows={6}
+            style={{ width: '100%', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 4, padding: 8, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', fontSize: 11, resize: 'vertical' }}
+          />
+        </div>
+        <div className="field">
+          <label>Additional narrative guidance (optional)</label>
           <textarea
             value={narrativeRules}
             onChange={(e) => setNarrativeRules(e.target.value)}
-            placeholder={defaultNarrativeRules ? undefined : 'Loading the built-in default…'}
-            rows={8}
+            placeholder="e.g. Always include a moment of dry humor. Or: Favor shorter sentences during combat specifically."
+            rows={4}
             style={{ width: '100%', background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 4, padding: 8, color: 'var(--text)', fontFamily: 'var(--font-mono)', fontSize: 11, resize: 'vertical' }}
           />
         </div>
         <button
           className="icon-btn"
-          onClick={() => setNarrativeRules(defaultNarrativeRules)}
-          disabled={!defaultNarrativeRules || narrativeRules.trim() === defaultNarrativeRules.trim()}
+          onClick={() => setNarrativeRules('')}
+          disabled={!narrativeRules}
           style={{ marginBottom: 16 }}
         >
-          Reset to Default
+          Clear
         </button>
 
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginTop: 20, marginBottom: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
@@ -1502,7 +1504,7 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
                 const n = parseFloat(trimmed);
                 return Number.isNaN(n) ? null : n;
               };
-              onSave({ apiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() && narrativeRules.trim() !== defaultNarrativeRules.trim() ? narrativeRules.trim() : undefined });
+              onSave({ apiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() || undefined });
             }}
           >
             Save

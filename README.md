@@ -1309,6 +1309,45 @@ wasn't.
 including the strong-hit-match gating bug directly. Full regression,
 syntax, types, and playtest all clean.
 
+## Narrative rules: reworked from a replaceable override into a genuine addition
+
+Direct correction: the player's own narrative rules text should be an
+addition on top of the built-in default, not something that overwrites
+it -- a real change of semantics, not a tweak to the last pass.
+
+**The design from the previous two passes couldn't support this
+cleanly.** Pre-filling one editable box with the literal default text
+and letting the player edit it in place -- exactly what the immediately
+prior change did -- makes "the default part" and "the player's genuine
+addition" inseparable once they're mixed together in the same field.
+There's no way to tell, from the final edited text alone, which parts
+are the original rules and which parts are new. Splitting these into
+two actually separate things was the only way to make "additive, not
+overwritten" true rather than just claimed.
+
+**Reworked into two clearly separate fields.** The built-in default is
+now shown in its own disabled, read-only textarea -- visible, but not
+editable, so there's no ambiguity about what it is. A second, genuinely
+empty textarea holds the player's own additional guidance; anything
+written there gets appended after the default in the actual prompt,
+never merged into or replacing any part of it. Verified this directly:
+built the prompt with a real addition and confirmed the full default
+text is still present, the addition appears after it (not before or
+interleaved), and an empty or whitespace-only addition behaves
+identically to supplying none at all.
+
+**This also removed a risk from the prior design, not just changed the
+UI.** The previous pass needed a careful "compare the box against the
+live default at save time" check specifically to stop an unedited
+default from getting silently locked in as a permanent override. That
+whole problem stops existing once the additional-guidance field is
+never pre-filled with the default in the first place -- Save is back to
+simply storing whatever's actually typed, or nothing if the field is
+empty.
+
+2 existing tests rewritten for the new additive assertions. Full
+regression, syntax, types, build, and playtest all clean.
+
 ## Narrative rules box should show the actual default text, not leave it blank
 
 Direct follow-up: the box shouldn't start blank with the default only

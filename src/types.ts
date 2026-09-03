@@ -249,11 +249,11 @@ export interface Config {
   // guidance in the prompt) from a model failure (the guidance was correct and the model didn't
   // follow it) for any specific turn.
   debugLogging: boolean;
-  // Player-editable override for instruction 2's own narrative-style rules (length target,
-  // show-don't-tell, no unfilled placeholders) -- undefined/empty means "use the built-in
-  // default," fetched via game.getDefaultNarrativeRules() rather than duplicated here, so
-  // there's exactly one place that text actually lives. A non-empty value completely replaces
-  // the default rather than getting appended to it.
+  // Additional narrative guidance, layered on top of instruction 2's own built-in rules (length
+  // target, show-don't-tell, no unfilled placeholders) -- the default always applies regardless
+  // of this value; a non-empty value gets appended after it, not swapped in to replace it. The
+  // default text itself is fetched via game.getDefaultNarrativeRules() rather than duplicated
+  // here, so there's exactly one place it actually lives.
   narrativeRules?: string;
 }
 
