@@ -1,4 +1,5 @@
 'use strict';
+const { fetchWithTimeout, readResponseJson, readResponseText } = require('./network.cjs');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -11,7 +12,7 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
  * system prompt the main loop needs.
  */
 
-async function callForPrompt(apiKey, model, systemPrompt, userContent, temperature, topP) {
+async function callForPrompt(apiKey, model, systemPrompt, userContent, temperature, topP, signal) {
   const body = {
     model,
     messages: [
@@ -25,19 +26,19 @@ async function callForPrompt(apiKey, model, systemPrompt, userContent, temperatu
   // model, so the same creativity preference plausibly should carry over here too.
   if (temperature !== null && temperature !== undefined) body.temperature = temperature;
   if (topP !== null && topP !== undefined) body.top_p = topP;
-  const response = await fetch(OPENROUTER_URL, {
+  const response = await fetchWithTimeout(OPENROUTER_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
-  });
+  }, { timeoutMs: 60000, signal });
   if (!response.ok) {
-    const text = await response.text().catch(() => '');
+    const text = await readResponseText(response, 64 * 1024).catch(() => '');
     throw new Error(`Image prompt composition failed (${response.status}): ${text.slice(0, 200)}`);
   }
-  const data = await response.json();
+  const data = await readResponseJson(response, 1024 * 1024);
   const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   if (!content || !content.trim()) {
     throw new Error('Image prompt composition returned an empty response.');
@@ -67,7 +68,7 @@ const SETTING_LINE = 'Setting: a science-fiction/space-opera universe (Ironsworn
  * an entirely empty context still produces a reasonable, generic prompt for that kind rather than
  * failing -- there's always at least the setting line and whatever name is available.
  */
-async function composeImagePrompt({ apiKey, model, kind, context = {}, temperature = null, topP = null }) {
+async function composeImagePrompt({ apiKey, model, kind, context = {}, temperature = null, topP = null, signal }) {
   let userContent;
   if (kind === 'portrait') {
     userContent =
@@ -101,7 +102,7 @@ async function composeImagePrompt({ apiKey, model, kind, context = {}, temperatu
       (context.characterName ? `The player character is ${context.characterName}${context.characterDescription ? `, ${context.characterDescription}` : ''}.\n` : '') +
       `\n${SETTING_LINE}`;
   }
-  return callForPrompt(apiKey, model, SYSTEM_PROMPT, userContent, temperature, topP);
+  return callForPrompt(apiKey, model, SYSTEM_PROMPT, userContent, temperature, topP, signal);
 }
 
 module.exports = { composeImagePrompt, OPENROUTER_URL };

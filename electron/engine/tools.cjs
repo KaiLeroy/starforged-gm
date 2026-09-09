@@ -2379,7 +2379,7 @@ async function executeTool(name, args, campaignState, imageGen = null) {
         return { error: `No connection with id "${args.connection_id}".` };
       }
       try {
-        const buffer = await comfyui.generateImage({ baseUrl: imageGen.baseUrl, workflowTemplate: imageGen.workflowTemplate, prompt: args.prompt });
+        const buffer = await comfyui.generateImage({ baseUrl: imageGen.baseUrl, workflowTemplate: imageGen.workflowTemplate, prompt: args.prompt, signal: imageGen.signal });
         const imageId = imageGen.saveImage(buffer);
         if (args.target === 'portrait') {
           state.setPortraitImage(campaignState, imageId);

@@ -1189,7 +1189,7 @@ export function ChatLog({
   );
 }
 
-export function Composer({ onSend, disabled, prefill }: { onSend: (text: string) => void; disabled: boolean; prefill?: { text: string; version: number } }) {
+export function Composer({ onSend, onCancel, sending = false, disabled, prefill }: { onSend: (text: string) => void; onCancel?: () => void; sending?: boolean; disabled: boolean; prefill?: { text: string; version: number } }) {
   const [value, setValue] = useState('');
   // prefill.version changes every time Edit is used, even if the text happens to be identical
   // to what's already there -- a plain dependency on prefill.text wouldn't re-fire in that case.
@@ -1216,8 +1216,8 @@ export function Composer({ onSend, disabled, prefill }: { onSend: (text: string)
             }
           }}
         />
-        <button onClick={submit} disabled={disabled}>
-          Transmit
+        <button onClick={sending ? onCancel : submit} disabled={sending ? !onCancel : disabled}>
+          {sending ? 'Cancel' : 'Transmit'}
         </button>
       </div>
     </div>
@@ -1225,7 +1225,7 @@ export function Composer({ onSend, disabled, prefill }: { onSend: (text: string)
 }
 
 export function SettingsModal({ config, onSave, onClose, campaignId = 'default' }: { config: Config; onSave: (c: Config) => void; onClose: () => void; campaignId?: string }) {
-  const [apiKey, setApiKey] = useState(config.apiKey);
+  const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState(config.model);
   // Kept as text, not type="number" inputs: these are optional (blank means "use the model's
   // own default", parsed to null on save, not forced to some hardcoded value), and React's
@@ -1263,7 +1263,7 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
         <h2>Uplink Settings</h2>
         <div className="field">
           <label>OpenRouter API Key</label>
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-or-..." />
+          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={config.hasApiKey ? 'Saved securely — enter a replacement' : 'sk-or-...'} />
         </div>
         <div className="field">
           <label>Model</label>
@@ -1445,7 +1445,7 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
                 const n = parseFloat(trimmed);
                 return Number.isNaN(n) ? null : n;
               };
-              onSave({ apiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() || undefined });
+              onSave({ apiKey, hasApiKey: config.hasApiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() || undefined });
             }}
           >
             Save

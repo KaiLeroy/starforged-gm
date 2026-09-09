@@ -49,7 +49,7 @@ export function SessionZeroTruths({
             <span style={{ color: 'var(--text-dim)' }}> {importError}</span>
           </div>
         )}
-        {!config.apiKey && (
+        {!config.hasApiKey && (
           <div className="track-card" style={{ margin: '14px 28px 0', padding: '10px 14px', maxWidth: 760, borderLeft: '3px solid var(--accent-copper)' }}>
             <strong style={{ color: 'var(--accent-copper)' }}>No OpenRouter API key configured yet.</strong>
             <span style={{ color: 'var(--text-dim)' }}> The GM won't be able to respond once character creation finishes -- set one up now via Settings, above.</span>

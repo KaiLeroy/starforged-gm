@@ -510,9 +510,10 @@ await check('generate_image with a working stub saves the image and updates the 
 
   const realFetch = global.fetch;
   global.fetch = async (url, opts) => {
-    if (url.endsWith('/prompt')) return { ok: true, status: 200, json: async () => ({ prompt_id: 'p1' }) };
-    if (url.includes('/history/')) return { ok: true, status: 200, json: async () => ({ p1: { status: { status_str: 'success' }, outputs: { a: { images: [{ filename: 'x.png', subfolder: '', type: 'output' }] } } } }) };
-    return { ok: true, status: 200, arrayBuffer: async () => new Uint8Array([9, 9, 9]).buffer };
+    if (url.endsWith('/prompt')) return { ok: true, status: 200, text: async () => JSON.stringify({ prompt_id: 'p1' }) };
+    if (url.includes('/history/')) return { ok: true, status: 200, text: async () => JSON.stringify({ p1: { status: { status_str: 'success' }, outputs: { a: { images: [{ filename: 'x.png', subfolder: '', type: 'output' }] } } } }) };
+    const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1]);
+    return { ok: true, status: 200, arrayBuffer: async () => pngHeader };
   };
 
   const gen1 = stubImageGen();

@@ -16,8 +16,8 @@ import { CampaignSelect } from './CampaignSelect';
 export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
   const saveConfig = async (c: Config) => {
-    await window.game.setConfig(c);
-    setConfig(c);
+    const publicConfig = await window.game.setConfig(c);
+    setConfig(publicConfig);
   };
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [campaign, setCampaign] = useState<CampaignRecord | null>(null);
@@ -220,7 +220,7 @@ export default function App() {
       });
       setCampaign(record);
       setSessionZeroTruthsDone(true);
-      if (config?.apiKey && !autoStartFiredRef.current) {
+      if (config?.hasApiKey && !autoStartFiredRef.current) {
         autoStartFiredRef.current = true;
         handleSend('Begin the campaign.');
       }
@@ -271,7 +271,7 @@ export default function App() {
     // its own real API cost -- not just redundant UI state), and it currently has no protection
     // beyond the submit button's own disabled state in NewCampaignModal, which guards against a
     // double-click but not against this function being invoked twice for any other reason.
-    if (config?.apiKey && !autoStartFiredRef.current) {
+    if (config?.hasApiKey && !autoStartFiredRef.current) {
       autoStartFiredRef.current = true;
       handleSend('Begin the campaign.');
     }
@@ -291,7 +291,7 @@ export default function App() {
     <div className="app-shell">
       <div className="topbar">
         <div>
-          <span className={`status-dot ${config.apiKey ? 'online' : 'offline'}`} />
+          <span className={`status-dot ${config.hasApiKey ? 'online' : 'offline'}`} />
           <span className="campaign-name">{campaign.state.character.name || 'No active ironsworn'}</span>
           {' · '}
           <span>{config.model || 'no model set'}</span>
@@ -403,7 +403,13 @@ export default function App() {
               {connectionError}
             </div>
           )}
-          <Composer onSend={handleSend} disabled={sending || !config.apiKey || needsCharacter || !!campaign.pendingChoice} prefill={prefill ?? undefined} />
+          <Composer
+            onSend={handleSend}
+            onCancel={() => void window.game.cancelMessage(campaignId)}
+            sending={sending}
+            disabled={!config.hasApiKey || needsCharacter || !!campaign.pendingChoice}
+            prefill={prefill ?? undefined}
+          />
         </div>
       ) : view === 'sector' ? (
         <div className="main-col" style={{ padding: 0 }}>

@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('game', {
   deleteImage: (payload) => ipcRenderer.invoke('images:delete', payload),
 
   sendMessage: (campaignId, text) => ipcRenderer.invoke('chat:send', { campaignId, text }),
+  cancelMessage: (campaignId) => ipcRenderer.invoke('chat:cancel', { campaignId }),
   undoLastTurn: (campaignId) => ipcRenderer.invoke('chat:undo', { campaignId }),
   resolveChoice: (campaignId, chosenText) => ipcRenderer.invoke('chat:resolve-choice', { campaignId, chosenText }),
   composeImagePrompt: (payload) => ipcRenderer.invoke('image:compose-prompt', payload),

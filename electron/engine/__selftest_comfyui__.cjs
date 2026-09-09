@@ -23,7 +23,11 @@ async function check(label, fn) {
 }
 
 function mockOk(body) {
-  return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body), arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer };
+  return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
+}
+function mockPng() {
+  const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 1, 0, 0, 0, 1]);
+  return { ok: true, status: 200, headers: { get: () => 'image/png' }, arrayBuffer: async () => pngHeader };
 }
 function mockFail(status, text) {
   return { ok: false, status, json: async () => ({}), text: async () => text };
@@ -132,11 +136,11 @@ function mockFail(status, text) {
       // Fourth call: fetching the actual image bytes via /view.
       assert.ok(url.includes('/view'));
       assert.ok(url.includes('filename=out.png'));
-      return mockOk({});
+      return mockPng();
     };
     const buffer = await comfyui.generateImage({ baseUrl: 'http://127.0.0.1:8188', workflowTemplate: workingTemplate, prompt: 'a red planet', timeoutMs: 10000 });
     assert.ok(Buffer.isBuffer(buffer));
-    assert.strictEqual(buffer.length, 4);
+    assert.strictEqual(buffer.length, 24);
     assert.strictEqual(call, 4);
   });
 
@@ -168,7 +172,7 @@ function mockFail(status, text) {
     };
     await assert.rejects(
       () => comfyui.generateImage({ baseUrl: 'http://127.0.0.1:8188', workflowTemplate: workingTemplate, prompt: 'x', timeoutMs: 100 }),
-      /Timed out/
+      /timed out/i
     );
   });
 

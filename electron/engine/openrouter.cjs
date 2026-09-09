@@ -1,5 +1,6 @@
 'use strict';
 const { TOOL_SCHEMAS, executeTool } = require('./tools.cjs');
+const { fetchWithTimeout, readResponseJson, readResponseText, combinedSignal } = require('./network.cjs');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // This is a genuine safety net against a truly runaway/looping model, not meant to bound how
@@ -35,9 +36,11 @@ const MAX_TOOL_ITERATIONS = 60;
  * the player; resuming (chat:resolve-choice) appends the real tool result for that toolCallId
  * and calls runTurn again to continue.
  */
-async function runTurn({ apiKey, model, messages, campaignState, imageGen = null, temperature = null, topP = null, onEvent = () => {} }) {
+async function runTurn({ apiKey, model, messages, campaignState, imageGen = null, temperature = null, topP = null, onEvent = () => {}, signal }) {
   const working = [...messages];
+  const operation = combinedSignal(signal, 10 * 60 * 1000);
 
+  try {
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     let response;
     try {
@@ -51,29 +54,29 @@ async function runTurn({ apiKey, model, messages, campaignState, imageGen = null
       // reject or treat unpredictably differently from the key just being absent.
       if (temperature !== null && temperature !== undefined) body.temperature = temperature;
       if (topP !== null && topP !== undefined) body.top_p = topP;
-      response = await fetch(OPENROUTER_URL, {
+      response = await fetchWithTimeout(OPENROUTER_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://github.com/anthropics', // OpenRouter asks for an identifying referer; replace with your app's page if you have one.
+          'HTTP-Referer': 'https://github.com/KaiLeroy/starforged-gm',
           'X-Title': 'Starforged Solo GM',
         },
         body: JSON.stringify(body),
-      });
+      }, { timeoutMs: 60000, signal: operation.signal });
     } catch (err) {
       onEvent({ type: 'error', message: `Network error calling OpenRouter: ${err.message}` });
       throw err;
     }
 
     if (!response.ok) {
-      const bodyText = await response.text().catch(() => '');
+      const bodyText = await readResponseText(response, 64 * 1024).catch(() => '');
       const message = `OpenRouter returned ${response.status}: ${bodyText.slice(0, 500)}`;
       onEvent({ type: 'error', message });
       throw new Error(message);
     }
 
-    const data = await response.json();
+    const data = await readResponseJson(response, 4 * 1024 * 1024);
     const choice = data.choices && data.choices[0];
     if (!choice) {
       const message = 'OpenRouter response had no choices.';
@@ -151,6 +154,9 @@ async function runTurn({ apiKey, model, messages, campaignState, imageGen = null
   const message = `Hit the tool-call iteration cap (${MAX_TOOL_ITERATIONS}) without a final narration. Returning as-is.`;
   onEvent({ type: 'error', message });
   return { messages: working, pendingChoice: null };
+  } finally {
+    operation.dispose();
+  }
 }
 
 module.exports = { runTurn, OPENROUTER_URL, MAX_TOOL_ITERATIONS };
