@@ -3,6 +3,7 @@ const dice = require('./dice.cjs');
 const data = require('./data.cjs');
 const state = require('./state.cjs');
 const comfyui = require('./comfyui.cjs');
+const { runStateTransaction } = require('./transaction.cjs');
 
 const OUTCOME_KEY = { strong_hit: 'Strong Hit', weak_hit: 'Weak Hit', miss: 'Miss' };
 
@@ -1551,15 +1552,15 @@ const TOOL_SCHEMAS = [
 ];
 
 /**
- * Executes a single tool call. `campaignState` is mutated in place for stateful tools;
- * the caller is responsible for persisting it after the turn. `imageGen` (optional) is
+ * Executes a single tool call against a private working state. The public executeTool wrapper
+ * commits that state only if this dispatcher succeeds. `imageGen` (optional) is
  * `{ baseUrl, workflowTemplate, saveImage(buffer) => imageId }`, injected by the
  * caller so this module never touches the filesystem or Electron directly -- if omitted,
  * generate_image reports a clean "not configured" error instead of throwing.
  * Async because generate_image makes real network calls; every other case still just returns
  * a plain value, which works fine inside an async function.
  */
-async function executeTool(name, args, campaignState, imageGen = null) {
+async function executeToolOnWorkingState(name, args, campaignState, imageGen = null) {
   switch (name) {
     case 'roll_action_move': {
       const move = data.findMove(args.move_name) || (
@@ -2414,6 +2415,18 @@ async function executeTool(name, args, campaignState, imageGen = null) {
     default:
       return { error: `Unknown tool "${name}".` };
   }
+}
+
+/**
+ * Transactional public boundary for every model-callable tool. A handler may mutate its working
+ * copy freely; a returned `{ error }` or thrown exception discards all of those mutations. On
+ * success the working copy replaces the live state's contents without changing its root identity.
+ */
+async function executeTool(name, args, campaignState, imageGen = null) {
+  return runStateTransaction(
+    campaignState,
+    (workingState) => executeToolOnWorkingState(name, args, workingState, imageGen)
+  );
 }
 
 module.exports = { TOOL_SCHEMAS, executeTool };
