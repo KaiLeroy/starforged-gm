@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('game', {
   exportCampaignStory: (payload) => ipcRenderer.invoke('campaign:export-story', payload),
   openExternalLink: (url) => ipcRenderer.invoke('shell:open-external', url),
   revealDebugLog: (campaignId) => ipcRenderer.invoke('debugLog:reveal', { campaignId }),
+  getDebugLogStatus: (campaignId) => ipcRenderer.invoke('debugLog:status', { campaignId }),
+  clearDebugLog: (campaignId) => ipcRenderer.invoke('debugLog:clear', { campaignId }),
+  exportDebugLog: (campaignId) => ipcRenderer.invoke('debugLog:export', { campaignId }),
   importCampaign: () => ipcRenderer.invoke('campaign:import'),
   exportCharacter: (payload) => ipcRenderer.invoke('character:export', payload),
   importCharacter: () => ipcRenderer.invoke('character:import'),
@@ -70,7 +73,7 @@ contextBridge.exposeInMainWorld('game', {
   removeCampaignElementManual: (payload) => ipcRenderer.invoke('campaignElements:remove', payload),
   getCampaignElementCategories: () => ipcRenderer.invoke('campaignElements:categories'),
 
-  testComfyConnection: () => ipcRenderer.invoke('comfy:test-connection'),
+  testComfyConnection: (comfyUrl) => ipcRenderer.invoke('comfy:test-connection', { comfyUrl }),
   getImage: (imageId) => ipcRenderer.invoke('images:get', { imageId }),
   generatePortrait: (payload) => ipcRenderer.invoke('images:generate-portrait', payload),
   generateLocationImage: (payload) => ipcRenderer.invoke('images:generate-location', payload),

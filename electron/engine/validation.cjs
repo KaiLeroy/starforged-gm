@@ -39,6 +39,17 @@ function assertImageId(value, label = 'imageId') {
   return value;
 }
 
+function assertLoopbackHttpUrl(value, label = 'URL') {
+  assertString(value, label, { min: 1, max: 2048 });
+  let url;
+  try { url = new URL(value); } catch { fail(`${label} must be a valid URL.`); }
+  const host = url.hostname.toLowerCase();
+  if (!['http:', 'https:'].includes(url.protocol) || !(host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host))) {
+    fail(`${label} must be an HTTP(S) loopback URL.`);
+  }
+  return value;
+}
+
 function assertJsonSafe(value, label = 'payload', depth = 0) {
   if (depth > 40) fail(`${label} is nested too deeply.`);
   if (value === undefined) return;
@@ -80,12 +91,7 @@ function assertConfig(config) {
   assertString(config.model, 'config.model', { min: 1, max: 200 });
   assertString(config.comfyUrl, 'config.comfyUrl', { max: 2048 });
   if (config.comfyUrl) {
-    let url;
-    try { url = new URL(config.comfyUrl); } catch { fail('config.comfyUrl must be a valid URL.'); }
-    const host = url.hostname.toLowerCase();
-    if (!['http:', 'https:'].includes(url.protocol) || !(host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host))) {
-      fail('config.comfyUrl must be an HTTP(S) loopback URL.');
-    }
+    assertLoopbackHttpUrl(config.comfyUrl, 'config.comfyUrl');
   }
   assertString(config.comfyWorkflow, 'config.comfyWorkflow', { max: 1024 * 1024 });
   for (const [key, min, max] of [['temperature', 0, 2], ['topP', 0, 1]]) {
@@ -166,6 +172,11 @@ function validateIpcPayload(channel, payload) {
     if (!['https:', 'http:'].includes(url.protocol)) fail('only HTTP(S) links may be opened.');
     return payload;
   }
+  if (channel === 'comfy:test-connection') {
+    assertPlainObject(payload);
+    assertLoopbackHttpUrl(payload.comfyUrl, 'comfyUrl');
+    return payload;
+  }
   if (isPlainObject(payload)) {
     if (payload.campaignId !== undefined) assertCampaignId(payload.campaignId);
     if (payload.imageId !== undefined) assertImageId(payload.imageId);
@@ -195,6 +206,7 @@ module.exports = {
   MAX_IMPORT_BYTES,
   assertCampaignId,
   assertImageId,
+  assertLoopbackHttpUrl,
   assertConfig,
   assertCampaignRecord,
   assertCharacterExport,

@@ -1,7 +1,9 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { assertCampaignId, assertImageId, MAX_IMPORT_BYTES } = require('./validation.cjs');
+const { assertCampaignId, MAX_IMPORT_BYTES } = require('./validation.cjs');
+const imageStore = require('./imageStore.cjs');
+const debugLog = require('./debugLog.cjs');
 
 function configPath(userDataDir) {
   return path.join(userDataDir, 'config.json');
@@ -101,101 +103,42 @@ function loadCampaignRecord(userDataDir, campaignId) {
   }
 }
 
-function imagesDir(userDataDir) {
-  return path.join(userDataDir, 'images');
-}
-
-function debugLogsDir(userDataDir) {
-  return path.join(userDataDir, 'debug-logs');
-}
-
-function debugLogPath(userDataDir, campaignId = 'default') {
-  assertCampaignId(campaignId);
-  return path.join(debugLogsDir(userDataDir), `${campaignId}.jsonl`);
-}
-
-/**
- * Appends one complete turn's diagnostic record to a per-campaign JSON Lines log --
- * requested directly, to help tell apart an app bug (wrong/missing guidance in the system
- * prompt, a broken tool) from a model failure (ignoring or misreading guidance that was
- * actually correct) for any specific turn. Each entry is still appended independently (no
- * need to read, parse, and rewrite the whole -- potentially large, over a long campaign --
- * file on every single turn the way a single top-level array would require), but pretty-
- * printed and separated by a blank line, rather than one compact, unreadable line per entry --
- * a real turn's own systemPrompt field alone commonly runs past 100,000 characters, and a
- * single giant escaped line is unreadable directly in an editor even with the rest of the
- * object indented nicely around it. Still one genuine, self-contained JSON value per entry
- * (parse with JSON.parse on the text between blank-line boundaries, or split the whole file on
- * /\n\n(?=\{)/), just no longer one single physical line -- that tradeoff is deliberate here,
- * since actual readability mattered more than the strict one-line-per-record JSONL convention.
- * Entirely opt-in (see config.debugLogging in main.cjs) -- never written unless the player has
- * actually turned it on, since this captures the complete system prompt text (which changes
- * with campaign state, so it's genuinely useful to see the exact version a specific turn
- * actually received) and could otherwise grow large silently for players who never asked for it.
- */
-function appendDebugLog(userDataDir, campaignId, entry) {
-  const dir = debugLogsDir(userDataDir);
-  fs.mkdirSync(dir, { recursive: true });
-  const record = JSON.stringify({ timestamp: new Date().toISOString(), campaignId, ...entry }, null, 2);
-  fs.appendFileSync(debugLogPath(userDataDir, campaignId), record + '\n\n', 'utf-8');
-}
-
-/** Saves generated image bytes to disk and returns an id to reference it by (not the raw path --
- *  the renderer never touches the filesystem directly; it asks for a data URL via IPC instead). */
-function saveImage(userDataDir, buffer, ext = 'png') {
-  const dir = imagesDir(userDataDir);
-  fs.mkdirSync(dir, { recursive: true });
-  const id = `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  fs.writeFileSync(path.join(dir, `${id}.${ext}`), buffer);
-  return id;
-}
-
-function loadImageAsDataUrl(userDataDir, imageId, mime = 'image/png') {
-  if (!imageId) return null;
-  assertImageId(imageId);
-  const ext = mime === 'image/png' ? 'png' : 'bin';
-  const file = path.join(imagesDir(userDataDir), `${imageId}.${ext}`);
-  if (!fs.existsSync(file)) return null;
-  const buf = fs.readFileSync(file);
-  return `data:${mime};base64,${buf.toString('base64')}`;
-}
-
-function deleteImage(userDataDir, imageId, mime = 'image/png') {
-  if (!imageId) return;
-  assertImageId(imageId);
-  const ext = mime === 'image/png' ? 'png' : 'bin';
-  const file = path.join(imagesDir(userDataDir), `${imageId}.${ext}`);
-  if (fs.existsSync(file)) fs.unlinkSync(file);
-}
-
-function campaignStateReferencesImage(state, imageId) {
-  if (!state || !imageId) return false;
-  if (state.character && state.character.portraitImageId === imageId) return true;
-  if ((state.connections || []).some((connection) => connection.imageId === imageId)) return true;
-  if ((state.illustrations || []).some((illustration) => illustration.imageId === imageId)) return true;
-  return Object.values(state.sectors || {}).some((sector) =>
-    Object.values(sector.cells || {}).some((cell) => cell.imageId === imageId)
-  );
-}
-
-/** Checks both loaded records and saves that have not been loaded into this process. */
-function imageReferencedByAnyCampaign(userDataDir, imageId, loadedCampaigns = new Map()) {
+function allCampaignRecords(userDataDir, loadedCampaigns = new Map()) {
+  const records = [];
   const checked = new Set();
+  let complete = true;
   for (const [campaignId, record] of loadedCampaigns) {
     checked.add(campaignId);
-    if (campaignStateReferencesImage(record && record.state, imageId)) return true;
+    records.push(record);
   }
   for (const campaignId of listCampaigns(userDataDir)) {
-    if (checked.has(campaignId)) continue;
-    try {
-      const { record } = loadCampaignRecord(userDataDir, campaignId);
-      if (campaignStateReferencesImage(record && record.state, imageId)) return true;
-    } catch {
-      // A corrupt unrelated campaign cannot prove a reference. Its own recovery remains available
-      // when it is opened; do not make every image operation fail because of it.
+    if (!checked.has(campaignId)) {
+      try { records.push(loadCampaignRecord(userDataDir, campaignId).record); }
+      catch { complete = false; }
+    }
+    // Recovery backups are reference roots too. Keeping their images means restoring a campaign
+    // after a later primary-file failure cannot resurrect dangling image IDs. The next successful
+    // save rotates the backup and makes superseded images collectible.
+    const backup = campaignBackupPath(userDataDir, campaignId);
+    if (fs.existsSync(backup)) {
+      try {
+        if (fs.statSync(backup).size > MAX_IMPORT_BYTES) throw new Error('Oversized campaign backup.');
+        records.push(JSON.parse(fs.readFileSync(backup, 'utf8')));
+      } catch { complete = false; }
     }
   }
-  return false;
+  return { records, complete };
+}
+
+function imageReferencedByAnyCampaign(userDataDir, imageId, loadedCampaigns = new Map()) {
+  const { records, complete } = allCampaignRecords(userDataDir, loadedCampaigns);
+  if (!complete) return true;
+  return records.some((record) => imageStore.campaignStateReferencesImage(record && record.state, imageId));
+}
+
+function collectOrphanImages(userDataDir, loadedCampaigns = new Map()) {
+  const { records, complete } = allCampaignRecords(userDataDir, loadedCampaigns);
+  return imageStore.collectOrphanImages(userDataDir, records, { complete });
 }
 
 
@@ -250,17 +193,12 @@ module.exports = {
   campaignBackupPath,
   saveCampaignRecord,
   loadCampaignRecord,
-  imagesDir,
-  debugLogsDir,
-  debugLogPath,
-  appendDebugLog,
+  ...imageStore,
+  ...debugLog,
   loadConfig,
   saveConfig,
   listCampaigns,
   deleteCampaign,
-  saveImage,
-  loadImageAsDataUrl,
-  deleteImage,
-  campaignStateReferencesImage,
   imageReferencedByAnyCampaign,
+  collectOrphanImages,
 };

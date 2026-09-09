@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import type { CampaignState, Config, Stats, StartingAssetCategory, OwnedAsset, Connection, Character, CatalogAsset, PendingChoice } from './types';
+import { validateSamplingSettings } from './settingsValidation';
 import { DisplayMessage, formatToolCall } from './utils';
 
 /** Renders chat message content as markdown -- both the GM's narration and the player's own
@@ -1238,18 +1239,21 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
   const [comfyWorkflow, setComfyWorkflow] = useState(config.comfyWorkflow || '');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+  const [debugStatus, setDebugStatus] = useState<{ exists: boolean; sizeBytes: number; fileCount: number; maxBytesPerFile: number; maxFiles: number; maxAgeDays: number } | null>(null);
 
   const [narrativeRules, setNarrativeRules] = useState(config.narrativeRules || '');
   const [defaultNarrativeRules, setDefaultNarrativeRules] = useState('');
   useEffect(() => {
     window.game.getDefaultNarrativeRules().then(setDefaultNarrativeRules).catch(() => {});
+    window.game.getDebugLogStatus(campaignId).then(setDebugStatus).catch(() => {});
   }, []);
 
   const testConnection = async () => {
     setTestStatus('testing');
     setTestMessage('');
     try {
-      await window.game.testComfyConnection();
+      await window.game.testComfyConnection(comfyUrl.trim());
       setTestStatus('ok');
     } catch (e: any) {
       setTestStatus('error');
@@ -1350,15 +1354,22 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
           prompt itself was wrong or missing guidance for the situation) from a model problem (the
           guidance was correct and the GM just didn't follow it): with both halves of a specific
           turn side by side, it's usually clear which one it was. Off by default, since it writes
-          the full prompt text to disk every turn.
+          the full prompt text to disk every turn. These files contain private campaign text and
+          model prompts. They are kept for 30 days, rotated at 5 MB, and limited to four files per
+          campaign; share an exported log only with someone you trust.
         </p>
-        <button
-          className="icon-btn"
-          onClick={() => window.game.revealDebugLog(campaignId)}
-          style={{ marginBottom: 16 }}
-        >
-          Open Debug Log
-        </button>
+        {debugStatus && <p style={{ fontSize: 11, color: 'var(--text-dim)', margin: '4px 0 8px' }}>
+          {debugStatus.exists ? `${debugStatus.fileCount} file(s), ${(debugStatus.sizeBytes / 1024).toFixed(1)} KB total.` : 'No debug log has been written for this campaign.'}
+        </p>}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button className="icon-btn" onClick={() => window.game.revealDebugLog(campaignId)}>Open</button>
+          <button className="icon-btn" disabled={!debugStatus?.exists} onClick={async () => { await window.game.exportDebugLog(campaignId); }}>Export…</button>
+          <button className="icon-btn" disabled={!debugStatus?.exists} onClick={async () => {
+            if (!window.confirm('Permanently delete this campaign’s retained debug logs?')) return;
+            await window.game.clearDebugLog(campaignId);
+            setDebugStatus(await window.game.getDebugLogStatus(campaignId));
+          }}>Clear</button>
+        </div>
 
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-cyan)', textTransform: 'uppercase', marginTop: 20, marginBottom: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
           Narrative rules
@@ -1439,24 +1450,22 @@ export function SettingsModal({ config, onSave, onClose, campaignId = 'default' 
             className="icon-btn"
             style={{ borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }}
             onClick={() => {
-              const parseOptionalFloat = (s: string): number | null => {
-                const trimmed = s.trim();
-                if (!trimmed) return null;
-                const n = parseFloat(trimmed);
-                return Number.isNaN(n) ? null : n;
-              };
-              onSave({ apiKey, hasApiKey: config.hasApiKey, model, comfyUrl, comfyWorkflow, temperature: parseOptionalFloat(temperature), topP: parseOptionalFloat(topP), moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() || undefined });
+              const sampling = validateSamplingSettings(temperature, topP);
+              if (sampling.error) { setSettingsError(sampling.error); return; }
+              setSettingsError('');
+              onSave({ apiKey, hasApiKey: config.hasApiKey, model, comfyUrl, comfyWorkflow, temperature: sampling.temperature, topP: sampling.topP, moveChoiceThreshold, debugLogging, narrativeRules: narrativeRules.trim() || undefined });
             }}
           >
             Save
           </button>
         </div>
+        {settingsError && <p role="alert" style={{ color: 'var(--danger)', fontSize: 12, textAlign: 'right' }}>{settingsError}</p>}
       </div>
     </div>
   );
 }
 
-const FINAL_ASSET_CATEGORIES = ['Module', 'Support Vehicle', 'Companion', 'Path', 'Custom'];
+const FINAL_ASSET_CATEGORIES = ['Module', 'Support Vehicle', 'Companion', 'Path'];
 
 export function NewCampaignModal({
   onCreate,
