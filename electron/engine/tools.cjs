@@ -13,6 +13,108 @@ function outcomeTextFor(move, outcome) {
   return null;
 }
 
+const CONNECTION_RANK_VALUE = { troublesome: 1, dangerous: 2, formidable: 3, extreme: 4, epic: 5 };
+const CHARACTER_VALUES = new Set(['edge', 'heart', 'iron', 'shadow', 'wits', 'health', 'spirit', 'supply', 'integrity']);
+const ALTERNATE_CHARACTER_VALUE_GRANTS = {
+  Shields: { stats: ['integrity'], abilities: [1] },
+  'Stealth Tech': { stats: ['shadow'], abilities: [3] },
+  Skiff: { stats: ['integrity'], abilities: [1, 2] },
+  Ace: { stats: ['integrity'], abilities: [3] },
+  Devotant: { stats: ['edge', 'heart', 'iron', 'shadow', 'wits'], abilities: [1, 2, 3] },
+  Seer: { stats: ['spirit'], abilities: [2] },
+  Sniper: { stats: ['wits'], abilities: [2] },
+  'Sensor Array': { stats: ['integrity'], abilities: [2, 3] },
+  Overseer: { stats: ['integrity'], abilities: [1, 3] },
+  'Service Pod': { stats: ['integrity'], abilities: [2] },
+  'Snub Fighter': { stats: ['integrity'], abilities: [1] },
+  Artist: { stats: ['edge', 'heart', 'iron', 'shadow', 'wits'], abilities: [3] },
+  Trader: { stats: ['supply'], abilities: [1] },
+  'Weapon Master': { stats: ['supply'], abilities: [3] },
+  Revenant: { stats: ['heart'], abilities: [3] },
+  Vanguard: { stats: ['wits'], abilities: [3] },
+  Starship: { stats: ['heart'], abilities: [3] },
+  Rover: { stats: ['integrity'], abilities: [3] },
+  Scoundrel: { stats: ['shadow'], abilities: [2] },
+};
+
+function characterValue(campaignState, name) {
+  if (!CHARACTER_VALUES.has(name)) throw new Error(`Unknown character stat or meter "${name}".`);
+  if (name in campaignState.character.stats) return campaignState.character.stats[name];
+  return campaignState.character.meters[name];
+}
+
+/** Resolves every roll value from owned campaign state or Dataforged; never from model arithmetic. */
+function resolveRollValue(move, args, campaignState) {
+  const source = args.value_source || 'character';
+  const statOptions = data.getMoveStatOptions(move);
+  if (source === 'character') {
+    if (statOptions && statOptions.validStats.length > 0 && !statOptions.validStats.includes(args.stat)) {
+      const listed = statOptions.options
+        .filter((option) => option.method === 'Any' && option.stats.length === 1)
+        .map((option) => `+${option.stats[0]}${option.text ? ` (${option.text.toLowerCase()})` : ''}`)
+        .join(', ');
+      throw new Error(`"${args.stat}" is not a valid stat for ${move.Name}. Its own actual options are: ${listed}.`);
+    }
+    return { statValue: characterValue(campaignState, args.stat), valueSource: source };
+  }
+  if (source === 'connection_rank') {
+    if (move.Name !== 'Develop Your Relationship') throw new Error('connection_rank is only valid for Develop Your Relationship.');
+    const connection = campaignState.connections.find((candidate) => candidate.id === args.source_id);
+    if (!connection || !CONNECTION_RANK_VALUE[connection.rank]) throw new Error('source_id must identify a ranked connection in this campaign.');
+    return { statValue: CONNECTION_RANK_VALUE[connection.rank], valueSource: source, sourceId: connection.id };
+  }
+  if (source === 'companion_health') {
+    const asset = campaignState.character.assets.find((candidate) => candidate.id === args.source_id);
+    if (!asset || typeof asset.health !== 'number') throw new Error('source_id must identify an owned companion-style asset with health.');
+    return { statValue: asset.health, valueSource: source, sourceId: asset.id };
+  }
+  if (source === 'highest' || source === 'lowest') {
+    const method = source === 'highest' ? 'Highest' : 'Lowest';
+    const option = statOptions && statOptions.options.find((candidate) => candidate.method === method && candidate.stats.length > 0);
+    if (!option) throw new Error(`${move.Name} has no Dataforged ${source}-value option.`);
+    const values = option.stats.map((name) => characterValue(campaignState, name));
+    return { statValue: source === 'highest' ? Math.max(...values) : Math.min(...values), valueSource: source, comparedStats: option.stats };
+  }
+  if (source === 'alternate_character_value') {
+    const asset = campaignState.character.assets.find((candidate) => candidate.id === args.source_id);
+    const grant = asset && ALTERNATE_CHARACTER_VALUE_GRANTS[asset.name];
+    if (!asset || !grant || !grant.stats.includes(args.stat) || !grant.abilities.some((level) => asset.abilities_unlocked.includes(level))) {
+      throw new Error('source_id must identify an owned, unlocked asset ability that authorizes this alternate character value.');
+    }
+    return { statValue: characterValue(campaignState, args.stat), valueSource: source, sourceId: asset.id };
+  }
+  if (source === 'asset_resource') {
+    const asset = campaignState.character.assets.find((candidate) => candidate.id === args.source_id);
+    if (!asset || !asset.resource) throw new Error('source_id must identify an owned asset with a tracked resource.');
+    return { statValue: asset.resource.current, valueSource: source, sourceId: asset.id };
+  }
+  if (source === 'time_gap') {
+    const looper = campaignState.character.assets.find((asset) => asset.id === args.source_id && asset.name === 'Looper' && asset.abilities_unlocked.includes(2));
+    if (move.Name !== 'Loop Back' || !looper) throw new Error('time_gap is only valid for an owned Looper with ability 2 making Loop Back.');
+    const values = { minutes: 4, hours: 3, days: 2 };
+    if (!values[args.time_gap]) throw new Error('time_gap must be minutes, hours, or days.');
+    return { statValue: values[args.time_gap], valueSource: source, timeGap: args.time_gap };
+  }
+  throw new Error(`Unknown value_source "${source}".`);
+}
+
+function validateActionDieMode(args, campaignState) {
+  const mode = args.action_die_mode || 'normal';
+  if (mode === 'normal') return { mode };
+  const asset = campaignState.character.assets.find((candidate) => candidate.id === args.source_id);
+  if (!asset) throw new Error('source_id must identify the owned asset authorizing this action-die mode.');
+  if (mode === 'omit') {
+    if (asset.name !== 'Sensor Array' || !asset.abilities_unlocked.includes(2)) throw new Error('Omitting the action die is only valid for Sensor Array ability 2.');
+    return { mode, assetId: asset.id };
+  }
+  const permitted =
+    (asset.name === 'Ace' && asset.abilities_unlocked.includes(2) && [4, 5, 6].includes(args.preset_action_die)) ||
+    (asset.name === 'Archer' && asset.abilities_unlocked.includes(3) && args.preset_action_die === 5) ||
+    (asset.name === 'Armored' && asset.abilities_unlocked.includes(1) && [4, 5].includes(args.preset_action_die) && (args.preset_action_die !== 5 || asset.abilities_unlocked.includes(2)));
+  if (!permitted) throw new Error('That owned asset/ability does not authorize the requested preset action die.');
+  return { mode, assetId: asset.id, preset: args.preset_action_die };
+}
+
 /**
  * OpenAI/OpenRouter-style tool definitions. Descriptions are written for the model,
  * not the developer -- keep them precise about what the app will do mechanically.
@@ -36,23 +138,23 @@ const TOOL_SCHEMAS = [
         properties: {
           move_name: { type: 'string', description: 'Exact or close name of the Starforged move being made, e.g. "Face Danger", "Strike", "Compel".' },
           stat: { type: 'string', enum: ['edge', 'heart', 'iron', 'shadow', 'wits', 'health', 'spirit', 'supply', 'integrity'], description: 'The stat, or condition meter used in place of a stat, that this move adds.' },
-          stat_value: {
-            type: 'integer',
-            description:
-              "The character's current value for that stat or meter. For the 5 stats and 3 condition meters, this is looked up from " +
-              'campaign state directly and this value is ignored UNLESS derived_value is true -- so for an ordinary roll, just pass ' +
-              "the character's real value here (it'll be verified either way, and matching it makes your own narration accurate in the meantime).",
-          },
           adds: { type: 'integer', description: 'Any bonus adds from assets, momentum, or the fiction. Defaults to 0.' },
-          derived_value: {
-            type: 'boolean',
+          value_source: {
+            type: 'string',
+            enum: ['character', 'connection_rank', 'companion_health', 'highest', 'lowest', 'alternate_character_value', 'asset_resource', 'time_gap'],
             description:
-              'Set true ONLY when stat_value is intentionally NOT the character\'s own stat/meter -- a connection\'s rank standing in ' +
-              'for a stat (Develop Your Relationship, post-bond), a companion\'s own health on its resist roll, or "whichever of two ' +
-              'stats is lower/higher" (Heal on yourself, etc.). Leave false for every ordinary roll.',
+              'Where the engine must obtain the roll value. Omit/character for an ordinary character stat or meter. ' +
+              'Use connection_rank or companion_health with source_id; highest/lowest makes the engine use the move\'s own ' +
+              'Dataforged comparison; alternate_character_value uses the named real character stat/meter for an asset-granted ' +
+              'substitution; asset_resource reads the owned asset\'s tracked resource; time_gap uses time_gap below. No source ' +
+              'accepts a model-supplied numeric value.',
           },
+          source_id: { type: 'string', description: 'Exact connection or owned asset id required by every non-character value source and non-normal action-die mode.' },
+          time_gap: { type: 'string', enum: ['minutes', 'hours', 'days'], description: 'Only for Looper\'s Loop Back: minutes=4, hours=3, days=2.' },
+          action_die_mode: { type: 'string', enum: ['normal', 'preset', 'omit'], description: 'Omit/normal for a standard d6. preset is only for a qualifying owned Ace/Archer/Armored ability and requires preset_action_die plus source_id. omit is only Sensor Array\'s automated scan.' },
+          preset_action_die: { type: 'integer', minimum: 4, maximum: 6, description: 'The established preset die for a qualifying owned asset; validated against that asset.' },
         },
-        required: ['move_name', 'stat', 'stat_value'],
+        required: ['move_name', 'stat'],
       },
     },
   },
@@ -75,7 +177,7 @@ const TOOL_SCHEMAS = [
         'get the real one rather than trying to recall it from whenever the asset was first acquired. An empty ' +
         'result for both means nothing from this character\'s ' +
         'owned assets is relevant here -- that\'s a real answer, not a failure. Call it AGAIN after the roll, ' +
-        'this time passing outcome and is_match -- for a hand-verified subset of abilities whose post-roll effect ' +
+        'this time passing roll_id (from the roll result), outcome and is_match -- for a hand-verified subset of abilities whose post-roll effect ' +
         'is genuinely unconditional (a fixed momentum grant, a legacy-track tick, an outcome-tier shift), the app ' +
         'computes AND ACTUALLY APPLIES the real result itself (see "applied" in the response) rather than leaving ' +
         'it to you -- narrate what it returns, don\'t recompute or reapply it yourself. Anything not in that ' +
@@ -86,6 +188,7 @@ const TOOL_SCHEMAS = [
         type: 'object',
         properties: {
           move_name: { type: 'string', description: 'The exact move about to be rolled, e.g. "Strike", "Compel", "Gain Ground".' },
+          roll_id: { type: 'string', description: 'Required on the post-roll call: the exact roll_id returned by roll_action_move.' },
           outcome: {
             type: 'string',
             enum: ['strong_hit', 'weak_hit', 'miss'],
@@ -104,11 +207,13 @@ const TOOL_SCHEMAS = [
       description:
         'Resolve a Starforged progress roll (progress score vs 2d10, no action die) for a vow, combat, ' +
         'or expedition progress track. Use this when a track is being resolved (e.g. Fulfill Your Vow, ' +
-        'Take Decisive Action).',
+        'Take Decisive Action). Pass move_name whenever this is a named core move so the roll ledger can ' +
+        'verify move-specific post-roll abilities.',
       parameters: {
         type: 'object',
         properties: {
           track_id: { type: 'string', description: 'The id of the progress track being resolved (from campaign state).' },
+          move_name: { type: 'string', description: 'The named core progress move being made, e.g. "Take Decisive Action". Omit only for an asset-specific progress roll with no core move.' },
           apply_bad_spot_downgrade: {
             type: 'boolean',
             description:
@@ -252,26 +357,16 @@ const TOOL_SCHEMAS = [
     function: {
       name: 'burn_momentum',
       description:
-        "Burn momentum to replace the last action score with the current momentum value, then recompute the " +
-        'outcome against the same two challenge dice from that roll. Momentum then resets to its reset value. Only ' +
-        'genuinely helps if momentum is HIGHER than the action score that was rolled -- pass original_action_score ' +
-        "so the tool can verify this and refuse if it wouldn't actually help (burning is a one-way reset, so a " +
-        "mistaken or pointless burn can't just be undone). Pass the challenge_dice from the roll being upgraded so " +
-        "the tool can tell you the new outcome -- don't work it out yourself. Only call this right after a weak " +
+        "Burn momentum for an engine-recorded roll_id. The engine retrieves that roll's real score and dice, " +
+        'refuses a burn that cannot improve it, prevents a second burn of the same roll, recomputes the outcome, ' +
+        'and resets momentum. Only call this right after a weak ' +
         'hit or miss, and only if the player chose to burn momentum.',
       parameters: {
         type: 'object',
         properties: {
-          original_action_score: { type: 'integer', description: 'The action_score (or progress_score) from the roll being upgraded -- the tool checks momentum actually exceeds this before allowing the burn.' },
-          challenge_dice: {
-            type: 'array',
-            items: { type: 'integer' },
-            minItems: 2,
-            maxItems: 2,
-            description: 'The [die1, die2] challenge dice from the roll_action_move or roll_progress_move result being upgraded.',
-          },
+          roll_id: { type: 'string', description: 'Exact roll_id returned by roll_action_move or roll_progress_move.' },
         },
-        required: ['original_action_score', 'challenge_dice'],
+        required: ['roll_id'],
       },
     },
   },
@@ -284,9 +379,9 @@ const TOOL_SCHEMAS = [
         'move. For assets that grant a conditional action-die reroll (Medbay, Workshop, Fleet Commander all grant ' +
         '"reroll your action die if its value is less than [some value]"): after the normal roll, check that ' +
         "condition yourself first (this tool doesn't check it), then if it's met and the player wants to, call " +
-        'this, recompute the action score as (new action die + the same stat_value + the same adds), and use ' +
-        'resolve_action_with_dice with that new score against the ORIGINAL, unchanged challenge dice.',
-      parameters: { type: 'object', properties: {} },
+        'this with that roll_id; the engine recomputes and records the outcome against the unchanged challenge dice. ' +
+        'Omit roll_id only when an asset explicitly calls for a standalone d6 check rather than modifying a move.',
+      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose action die is being rerolled. Omit only for a genuine standalone d6 check.' }, extra_add: { type: 'integer', enum: [0, 1], description: 'Optional verified ability add applied to the rerolled action die; only 0 or 1.' } } },
     },
   },
   {
@@ -300,7 +395,7 @@ const TOOL_SCHEMAS = [
         'rolling, use resolve_action_with_dice to recompute the outcome with whichever two dice actually apply. ' +
         'roll_bonus_challenge_dice below does this whole sequence -- including every pairing\'s real outcome -- ' +
         'in one call; prefer that one for Sleuth/Cohort specifically rather than orchestrating this by hand.',
-      parameters: { type: 'object', properties: {} },
+      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose challenge pool receives this die.' } }, required: ['roll_id'] },
     },
   },
   {
@@ -320,11 +415,10 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          action_score: { type: 'integer', description: "The character's own action score from the original roll -- the same value already used for the initial two-die comparison." },
-          original_challenge_dice: { type: 'array', items: { type: 'integer' }, description: 'The original two challenge dice from the roll this is adding onto, e.g. [10, 2].' },
+          roll_id: { type: 'string', description: 'Exact roll_id returned by the original action/progress roll; score and original dice are read from the ledger.' },
           extra_die_count: { type: 'integer', description: 'How many bonus dice to roll -- 1 for Sleuth, or the number of participating specialists for Cohort. Defaults to 1 if omitted.' },
         },
-        required: ['action_score', 'original_challenge_dice'],
+        required: ['roll_id'],
       },
     },
   },
@@ -337,7 +431,7 @@ const TOOL_SCHEMAS = [
         'grant "reroll any challenge dice" under specific conditions -- Missile Array, Demolitionist, Lore Hunter. ' +
         'After rerolling, use resolve_action_with_dice with the same action score and these new dice to get the ' +
         "real outcome -- don't work it out yourself.",
-      parameters: { type: 'object', properties: {} },
+      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose challenge dice are being rerolled.' } }, required: ['roll_id'] },
     },
   },
   {
@@ -353,7 +447,11 @@ const TOOL_SCHEMAS = [
       parameters: {
         type: 'object',
         properties: {
-          action_score: { type: 'integer', description: 'The action or progress score already rolled -- unchanged, this tool only re-checks it against different dice.' },
+          roll_id: { type: 'string', description: 'Exact roll_id returned by the original action/progress roll.' },
+          action_score: { type: 'integer', description: 'Optional score returned by an engine action-die reroll. It must be authorized on this roll; omit to use the original score.' },
+          score_mode: { type: 'string', enum: ['current', 'kinetic_plus_2', 'exosuit_integrity_die'], description: 'Optional engine-verified post-roll score transformation for the named owned asset ability.' },
+          dice_mode: { type: 'string', enum: ['current', 'revenant_zero'], description: 'Optional engine-verified challenge-die transformation. revenant_zero requires the owned unlocked Revenant and its exact source_id.' },
+          source_id: { type: 'string', description: 'Exact owned asset id required by a non-current score_mode or dice_mode.' },
           challenge_dice: {
             type: 'array',
             items: { type: 'integer' },
@@ -362,7 +460,7 @@ const TOOL_SCHEMAS = [
             description: 'The [die1, die2] pair to check the score against -- the two dice actually being used after choosing/rerolling/replacing.',
           },
         },
-        required: ['action_score', 'challenge_dice'],
+        required: ['roll_id', 'challenge_dice'],
       },
     },
   },
@@ -1464,62 +1562,53 @@ const TOOL_SCHEMAS = [
 async function executeTool(name, args, campaignState, imageGen = null) {
   switch (name) {
     case 'roll_action_move': {
-      const move = data.findMove(args.move_name);
+      const move = data.findMove(args.move_name) || (
+        args.value_source === 'time_gap' && String(args.move_name).toLowerCase() === 'loop back'
+          ? { $id: 'Starforged/Assets/Path/Looper/Loop_Back', Name: 'Loop Back', Category: 'Asset Move', Display: {} }
+          : null
+      );
       if (!move) return { error: `No move found matching "${args.move_name}".` };
-      // Move stat SELECTION itself out of the model's own memory and into the engine, for any
-      // move where Dataforged defines a real, closed set of valid stats -- not just re-verifying
-      // the stat_value NUMBER (below) but validating the stat NAME the model chose against the
-      // move's own actual options, straight from source data. A model correctly judging "the
-      // player is threatening, not bartering" from the fiction is a genuine judgment call worth
-      // it making; separately having to also recall "and threatening uses +iron" from several
-      // hundred lines of prompt is pure memory risk with no judgment involved, and past behavior
-      // shows that's exactly where mistakes happen. This only ever narrows an already-open field
-      // (Face Danger-style moves where all 5 stats are legitimately valid approaches produce no
-      // rejection at all) or catches a genuinely wrong pick (Compel rolled with +wits, which
-      // Dataforged simply doesn't offer as an option) -- it never second-guesses which of several
-      // still-valid stats best fits the specific fiction, since that judgment call is exactly
-      // what's meant to stay with the model.
-      if (!args.derived_value) {
-        const statOptions = data.getMoveStatOptions(move);
-        if (statOptions && statOptions.validStats.length > 0 && !statOptions.validStats.includes(args.stat)) {
-          const listed = statOptions.options
-            .filter((o) => o.method === 'Any' && o.stats.length === 1)
-            .map((o) => `+${o.stats[0]}${o.text ? ` (${o.text.toLowerCase()})` : ''}`)
-            .join(', ');
-          return {
-            error:
-              `"${args.stat}" is not a valid stat for ${move.Name}. Its own actual options are: ${listed}. ` +
-              'Pick whichever genuinely fits how the player is approaching this, then call roll_action_move again with that stat.',
-          };
-        }
+      let resolved;
+      let actionDieMode;
+      try {
+        resolved = resolveRollValue(move, args, campaignState);
+        actionDieMode = validateActionDieMode(args, campaignState);
+      } catch (error) {
+        return { error: error.message };
       }
-      // Trust, but verify: for the 5 stats and 3 condition meters, the real value already lives
-      // in campaignState -- look it up directly rather than trusting whatever stat_value the
-      // model reported. Without this, nothing stops a stat_value that doesn't match the
-      // character's actual sheet from being used to compute a real outcome (verified directly:
-      // an Edge-1 character reporting stat_value 5 produced a strong hit that Edge 1 would not
-      // have earned against the same challenge dice -- not a cosmetic discrepancy, a different
-      // result). derived_value is the one legitimate escape hatch: some rolls intentionally use
-      // a number that ISN'T the character's own stat (a connection's rank standing in for a stat
-      // on Develop Your Relationship, a companion's own health on its resist roll, "whichever of
-      // two stats is lower" on Heal) -- those are real, documented exceptions, not something to
-      // silently override.
-      const STANDARD_STATS = ['edge', 'heart', 'iron', 'shadow', 'wits'];
-      const STANDARD_METERS = ['health', 'spirit', 'supply', 'integrity'];
-      let statValue = args.stat_value;
-      if (!args.derived_value) {
-        if (STANDARD_STATS.includes(args.stat)) {
-          statValue = campaignState.character.stats[args.stat];
-        } else if (STANDARD_METERS.includes(args.stat)) {
-          statValue = campaignState.character.meters[args.stat];
-        }
-        // Anything else (e.g. a typo'd stat name) falls through to args.stat_value as reported --
-        // there's no real state to verify it against.
+      let result;
+      if (actionDieMode.mode === 'normal') {
+        result = dice.rollActionMove({ statValue: resolved.statValue, adds: args.adds || 0, momentum: campaignState.character.meters.momentum });
+      } else {
+        const actionDie = actionDieMode.mode === 'preset' ? actionDieMode.preset : null;
+        const dieValue = actionDie === null ? 0 : actionDie;
+        const negativeMomentumApplied = actionDie !== null && campaignState.character.meters.momentum < 0 && Math.abs(campaignState.character.meters.momentum) === actionDie;
+        const actionScore = dice.computeActionScore(negativeMomentumApplied ? 0 : dieValue, resolved.statValue, args.adds || 0);
+        const challengeDice = dice.rollChallengeDice();
+        result = {
+          actionDie,
+          statValue: resolved.statValue,
+          adds: args.adds || 0,
+          momentum: campaignState.character.meters.momentum,
+          negativeMomentumApplied,
+          challengeDice,
+          actionScore,
+          ...dice.determineOutcome(actionScore, challengeDice),
+        };
       }
-      const result = dice.rollActionMove({
-        statValue,
-        adds: args.adds || 0,
-        momentum: campaignState.character.meters.momentum,
+      const rollId = state.recordRoll(campaignState, {
+        kind: 'action',
+        moveName: move.Name,
+        stat: args.stat,
+        ...resolved,
+        adds: result.adds,
+        actionDie: result.actionDie,
+        momentum: result.momentum,
+        actionDieMode: actionDieMode.mode,
+        actionScore: result.actionScore,
+        challengeDice: result.challengeDice,
+        outcome: result.outcome,
+        isMatch: result.is_match,
       });
       // Surfaced directly in this same result, not left as a separate fact the model has to
       // remember to go check on its own -- real play showed that check being skipped entirely,
@@ -1550,6 +1639,7 @@ async function executeTool(name, args, campaignState, imageGen = null) {
           color: (move.Display && move.Display.Color) || null,
         },
         stat: args.stat,
+        roll_id: rollId,
         ...result,
         outcome_text: outcomeTextFor(move, result.outcome),
         momentum_burn: momentumBurn,
@@ -1565,10 +1655,28 @@ async function executeTool(name, args, campaignState, imageGen = null) {
       // onto that ability's own entry so it's unambiguous which specific ability produced which
       // change, not a separate, disconnected list.
       if (args.outcome) {
+        if (!args.roll_id) return { error: 'roll_id is required on the post-roll check_asset_bonuses call.' };
+        let roll;
+        try {
+          roll = state.getRoll(campaignState, args.roll_id);
+        } catch (error) {
+          return { error: error.message };
+        }
+        if (roll.moveName !== move.Name) return { error: `roll_id "${args.roll_id}" belongs to ${roll.moveName}, not ${move.Name}.` };
+        if (roll.currentOutcome !== args.outcome || roll.currentIsMatch !== !!args.is_match) {
+          return { error: 'The supplied outcome/is_match does not match the engine-recorded roll.' };
+        }
         for (const entry of explicit) {
           const effect = state.getStructuredAssetEffect(entry.asset, entry.level);
           if (effect) {
-            entry.applied = state.applyStructuredAssetEffect(campaignState, effect, { outcome: args.outcome, isMatch: !!args.is_match });
+            const effectKey = `${entry.asset_id}:${entry.level}`;
+            const previous = state.getAppliedAssetEffect(campaignState, args.roll_id, effectKey);
+            if (previous) {
+              entry.applied = { ...previous, already_applied: true };
+            } else {
+              entry.applied = state.applyStructuredAssetEffect(campaignState, effect, { outcome: roll.currentOutcome, isMatch: roll.currentIsMatch });
+              state.recordAppliedAssetEffect(campaignState, args.roll_id, effectKey, entry.applied);
+            }
           }
         }
       }
@@ -1577,6 +1685,12 @@ async function executeTool(name, args, campaignState, imageGen = null) {
     case 'roll_progress_move': {
       const track = campaignState.progressTracks.find((t) => t.id === args.track_id);
       if (!track) return { error: `No progress track with id "${args.track_id}".` };
+      let progressMove = null;
+      if (args.move_name) {
+        progressMove = data.findMove(args.move_name);
+        const isProgressMove = progressMove && (progressMove.Trigger?.Options || []).some((option) => option['Roll type'] === 'Progress roll');
+        if (!isProgressMove) return { error: `No progress move found matching "${args.move_name}".` };
+      }
       // A legacy track that has ever been cleared always resolves as if at 10 progress,
       // even though its ticks reset to 0 to keep earning experience -- per the rulebook.
       const progressScore = track.legacyCleared ? 10 : state.progressBoxes(track.ticks);
@@ -1591,7 +1705,16 @@ async function executeTool(name, args, campaignState, imageGen = null) {
         else if (result.outcome === 'weak_hit') result.outcome = 'miss';
         if (result.outcome !== original) result.downgraded_from = original;
       }
-      return { track_id: args.track_id, track_name: track.name, ...result };
+      const rollId = state.recordRoll(campaignState, {
+        kind: 'progress',
+        moveName: progressMove ? progressMove.Name : null,
+        trackId: args.track_id,
+        progressScore: result.progressScore,
+        challengeDice: result.challengeDice,
+        outcome: result.outcome,
+        isMatch: result.is_match,
+      });
+      return { roll_id: rollId, track_id: args.track_id, track_name: track.name, ...result };
     }
     case 'mark_progress_track': {
       try {
@@ -1665,51 +1788,136 @@ async function executeTool(name, args, campaignState, imageGen = null) {
       }
     }
     case 'burn_momentum': {
-      const currentMomentum = campaignState.character.meters.momentum;
-      // A burn is only ever worth it if momentum genuinely exceeds the score being replaced --
-      // and since burning resets momentum to a low value with no way to undo it in the moment, a
-      // mistaken or pointless burn is a real, costly error to let through silently. Reject it
-      // outright rather than just warning, so nothing actually changes on a bad call. Also
-      // reject if original_action_score is missing entirely (rather than silently skipping
-      // validation) -- it's a required parameter, but model tool-calls don't always perfectly
-      // follow "required," and a missing value here is exactly the case this check exists for.
-      if (typeof args.original_action_score !== 'number') {
-        return { error: 'original_action_score is required -- pass the action_score (or progress_score) from the roll being upgraded so this can be checked against current momentum before spending it.' };
+      let roll;
+      try {
+        roll = state.getRoll(campaignState, args.roll_id);
+      } catch (error) {
+        return { error: error.message };
       }
-      if (currentMomentum <= args.original_action_score) {
+      const currentMomentum = campaignState.character.meters.momentum;
+      if (roll.kind !== 'action') return { error: 'Momentum can only be burned on an action roll, not a progress roll.' };
+      if (roll.momentumBurned) return { error: `Momentum was already burned for roll_id "${args.roll_id}".` };
+      if (currentMomentum <= roll.currentActionScore) {
         return {
-          error: `Burning momentum wouldn't help here: current momentum (${currentMomentum}) does not exceed the original action score (${args.original_action_score}). Refused -- momentum was NOT spent.`,
+          error: `Burning momentum wouldn't help here: current momentum (${currentMomentum}) does not exceed the roll's current score (${roll.currentActionScore}). Refused -- momentum was NOT spent.`,
         };
       }
-      let newOutcome = null;
-      if (Array.isArray(args.challenge_dice) && args.challenge_dice.length === 2) {
-        const recomputed = dice.determineOutcome(currentMomentum, args.challenge_dice);
-        newOutcome = { new_action_score: currentMomentum, challenge_dice: args.challenge_dice, ...recomputed };
-      }
+      const recomputed = dice.determineOutcome(currentMomentum, roll.currentChallengeDice);
+      const newOutcome = { new_action_score: currentMomentum, challenge_dice: roll.currentChallengeDice, ...recomputed };
       const result = state.burnMomentum(campaignState);
+      state.markMomentumBurned(campaignState, args.roll_id);
+      state.updateRollResolution(campaignState, args.roll_id, currentMomentum, roll.currentChallengeDice, recomputed);
       return { ...result, new_outcome: newOutcome };
     }
     case 'reroll_action_die': {
-      return { die: dice.rollActionDie() };
+      try {
+        if (!args.roll_id) return { die: dice.rollActionDie(), standalone: true };
+        const roll = state.getRoll(campaignState, args.roll_id);
+        if (roll.kind !== 'action') return { error: 'reroll_action_die requires an action-roll roll_id.' };
+        if (args.extra_add === 1 && !campaignState.character.assets.some((asset) => asset.name === 'Looper' && asset.abilities_unlocked.includes(3))) {
+          return { error: 'extra_add 1 requires an owned Looper with ability 3 unlocked.' };
+        }
+        const die = dice.rollActionDie();
+        const dieValue = roll.momentum < 0 && Math.abs(roll.momentum) === die ? 0 : die;
+        const actionScore = dice.computeActionScore(dieValue, roll.statValue, roll.adds + (args.extra_add || 0));
+        state.authorizeActionScore(campaignState, args.roll_id, actionScore);
+        const result = dice.determineOutcome(actionScore, roll.currentChallengeDice);
+        state.updateRollResolution(campaignState, args.roll_id, actionScore, roll.currentChallengeDice, result);
+        return { roll_id: args.roll_id, die, action_score: actionScore, challenge_dice: roll.currentChallengeDice, ...result };
+      } catch (error) {
+        return { error: error.message };
+      }
     }
     case 'roll_extra_challenge_die': {
-      return { die: dice.rollExtraChallengeDie() };
+      try {
+        const roll = state.getRoll(campaignState, args.roll_id);
+        const die = dice.rollExtraChallengeDie();
+        for (const original of roll.currentChallengeDice) {
+          state.authorizeChallengeDice(campaignState, args.roll_id, [original, die]);
+          state.authorizeChallengeDice(campaignState, args.roll_id, [die, original]);
+        }
+        return { roll_id: args.roll_id, die };
+      } catch (error) {
+        return { error: error.message };
+      }
     }
     case 'roll_bonus_challenge_dice': {
-      if (!Array.isArray(args.original_challenge_dice) || args.original_challenge_dice.length !== 2) {
-        return { error: 'original_challenge_dice must be an array of exactly 2 integers.' };
+      try {
+        const roll = state.getRoll(campaignState, args.roll_id);
+        const result = dice.rollBonusChallengeDice(roll.currentActionScore, roll.currentChallengeDice, args.extra_die_count || 1);
+        if (result.forced_match) {
+          state.authorizeChallengeDice(campaignState, args.roll_id, result.dice_used);
+          state.updateRollResolution(campaignState, args.roll_id, roll.currentActionScore, result.dice_used, result);
+        } else {
+          for (const pairing of result.possible_pairings) state.authorizeChallengeDice(campaignState, args.roll_id, pairing.dice);
+        }
+        return { roll_id: args.roll_id, action_score: roll.currentActionScore, ...result };
+      } catch (error) {
+        return { error: error.message };
       }
-      return dice.rollBonusChallengeDice(args.action_score, args.original_challenge_dice, args.extra_die_count || 1);
     }
     case 'reroll_challenge_dice': {
-      return { challenge_dice: dice.rerollChallengeDice() };
+      try {
+        const roll = state.getRoll(campaignState, args.roll_id);
+        const challengeDice = dice.rerollChallengeDice();
+        state.authorizeChallengeDice(campaignState, args.roll_id, challengeDice);
+        const result = dice.determineOutcome(roll.currentActionScore, challengeDice);
+        state.updateRollResolution(campaignState, args.roll_id, roll.currentActionScore, challengeDice, result);
+        return { roll_id: args.roll_id, action_score: roll.currentActionScore, challenge_dice: challengeDice, ...result };
+      } catch (error) {
+        return { error: error.message };
+      }
     }
     case 'resolve_action_with_dice': {
       if (!Array.isArray(args.challenge_dice) || args.challenge_dice.length !== 2) {
         return { error: 'challenge_dice must be an array of exactly 2 integers.' };
       }
-      const recomputed = dice.determineOutcome(args.action_score, args.challenge_dice);
-      return { action_score: args.action_score, challenge_dice: args.challenge_dice, ...recomputed };
+      try {
+        const roll = state.getRoll(campaignState, args.roll_id);
+        let actionScore = args.action_score === undefined ? roll.currentActionScore : args.action_score;
+        let burnSpecialMomentum = false;
+        if (args.score_mode && args.score_mode !== 'current') {
+          const asset = campaignState.character.assets.find((candidate) => candidate.id === args.source_id);
+          if (args.score_mode === 'kinetic_plus_2') {
+            if (!asset || asset.name !== 'Kinetic' || !asset.abilities_unlocked.includes(2)) return { error: 'kinetic_plus_2 requires the exact id of an owned Kinetic with ability 2 unlocked.' };
+            actionScore = Math.min(10, roll.currentActionScore + 2);
+          } else if (args.score_mode === 'exosuit_integrity_die') {
+            if (!asset || asset.name !== 'Exosuit' || !asset.abilities_unlocked.includes(2) || roll.kind !== 'action') return { error: 'exosuit_integrity_die requires an action roll and the exact id of an owned Exosuit with ability 2 unlocked.' };
+            actionScore = dice.computeActionScore(campaignState.character.meters.integrity, roll.statValue, roll.adds);
+          }
+          state.authorizeActionScore(campaignState, args.roll_id, actionScore);
+        }
+        if (args.dice_mode === 'revenant_zero') {
+          const revenant = campaignState.character.assets.find((candidate) => candidate.id === args.source_id && candidate.name === 'Revenant' && candidate.abilities_unlocked.includes(2));
+          const changedIndexes = roll.challengeDice
+            .map((value, index) => (args.challenge_dice[index] === 0 && value !== 0 ? index : -1))
+            .filter((index) => index >= 0);
+          const unchangedIndexes = roll.challengeDice
+            .map((value, index) => (args.challenge_dice[index] === value ? index : -1))
+            .filter((index) => index >= 0);
+          if (!revenant || roll.moveName !== 'Take Decisive Action' || changedIndexes.length !== 1 || unchangedIndexes.length !== 1) {
+            return { error: 'revenant_zero requires Take Decisive Action and the exact id of an owned Revenant with ability 2 unlocked, changing exactly one original die to 0.' };
+          }
+          if (roll.momentumBurned) return { error: `Momentum was already burned for roll_id "${args.roll_id}".` };
+          if (campaignState.character.meters.momentum <= roll.challengeDice[changedIndexes[0]]) {
+            return { error: 'Current momentum must exceed the challenge die being zeroed.' };
+          }
+          state.authorizeChallengeDice(campaignState, args.roll_id, args.challenge_dice);
+          burnSpecialMomentum = true;
+        }
+        if (!state.isAuthorizedActionScore(campaignState, args.roll_id, actionScore)) return { error: 'action_score was not produced or authorized by the engine for this roll_id.' };
+        if (!state.isAuthorizedChallengeDice(campaignState, args.roll_id, args.challenge_dice)) return { error: 'challenge_dice were not produced or authorized by the engine for this roll_id.' };
+        const recomputed = dice.determineOutcome(actionScore, args.challenge_dice);
+        let momentumBurn = null;
+        if (burnSpecialMomentum) {
+          momentumBurn = state.burnMomentum(campaignState);
+          state.markMomentumBurned(campaignState, args.roll_id);
+        }
+        state.updateRollResolution(campaignState, args.roll_id, actionScore, args.challenge_dice, recomputed);
+        return { roll_id: args.roll_id, action_score: actionScore, challenge_dice: args.challenge_dice, ...recomputed, ...(momentumBurn ? { momentum_burn: momentumBurn } : {}) };
+      } catch (error) {
+        return { error: error.message };
+      }
     }
     case 'adjust_asset_resource': {
       try {
@@ -1794,8 +2002,7 @@ async function executeTool(name, args, campaignState, imageGen = null) {
       const asset = data.findAsset(args.asset_name);
       if (!asset) return { error: `No asset found matching "${args.asset_name}".` };
       try {
-        state.spendExperience(campaignState, state.ASSET_PURCHASE_COST);
-        const added = state.addAsset(campaignState, {
+        const added = state.purchaseAsset(campaignState, {
           id: asset.$id,
           name: asset.Name,
           category: (asset['Asset Type'] || '').split('/').pop(),
@@ -1832,8 +2039,7 @@ async function executeTool(name, args, campaignState, imageGen = null) {
       const owned = campaignState.character.assets.find((a) => a.name.toLowerCase() === String(args.asset_name).toLowerCase());
       if (!owned) return { error: `Character doesn't own an asset called "${args.asset_name}".` };
       try {
-        state.spendExperience(campaignState, state.ASSET_UPGRADE_COST);
-        state.unlockAssetAbility(campaignState, owned.id, args.ability_number);
+        state.upgradeAsset(campaignState, owned.id, args.ability_number);
         const fullAsset = data.findAsset(owned.id);
         const abilityText = fullAsset && fullAsset.Abilities ? fullAsset.Abilities[args.ability_number - 1].Text : null;
         return { asset: owned, ability_number: args.ability_number, ability_text: abilityText, experience_remaining: state.availableExperience(campaignState) };
