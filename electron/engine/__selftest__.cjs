@@ -12,6 +12,7 @@ const data = require('./data.cjs');
 const dice = require('./dice.cjs');
 const state = require('./state.cjs');
 const store = require('./store.cjs');
+const transaction = require('./transaction.cjs');
 const { TOOL_SCHEMAS, executeTool } = require('./tools.cjs');
 
 let passed = 0;
@@ -200,43 +201,48 @@ await check('burn_momentum resets to the reset value', async () => {
   assert.strictEqual(result.burned, 7);
   assert.strictEqual(cs.character.meters.momentum, cs.character.meters.momentum_reset);
 });
-await check('burn_momentum tool recomputes the outcome against the passed challenge dice, when momentum genuinely exceeds the original score', async () => {
+await check('burn_momentum uses the engine-recorded score/dice and prevents a second burn of the same roll', async () => {
   const cs = state.newCampaignState();
   cs.character.meters.momentum = 8; // higher than the original action score of 5
-  // Original roll: action score 5 vs [6, 9] -> miss. Burning momentum (8) should upgrade it.
-  const r = await executeTool('burn_momentum', { original_action_score: 5, challenge_dice: [6, 9] }, cs);
+  const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 1, adds: 0, actionScore: 5, challengeDice: [6, 9], outcome: 'miss', isMatch: false });
+  const r = await executeTool('burn_momentum', { roll_id: rollId }, cs);
   assert.strictEqual(r.burned, 8);
   assert.strictEqual(r.new_outcome.new_action_score, 8);
   assert.strictEqual(r.new_outcome.outcome, 'weak_hit'); // beats 6, not 9
   assert.strictEqual(cs.character.meters.momentum, cs.character.meters.momentum_reset);
-});
-await check('burn_momentum tool without challenge_dice still resets momentum but reports no new outcome', async () => {
-  const cs = state.newCampaignState();
-  cs.character.meters.momentum = 5;
-  const r = await executeTool('burn_momentum', { original_action_score: 2 }, cs);
-  assert.strictEqual(r.burned, 5);
-  assert.strictEqual(r.new_outcome, null);
+  const repeated = await executeTool('burn_momentum', { roll_id: rollId }, cs);
+  assert.ok(repeated.error && repeated.error.includes('already burned'));
 });
 await check("burn_momentum REJECTS a burn that wouldn't help (momentum not higher than the original score) -- a real gap: nothing previously prevented a costly, one-way-irreversible mistaken burn", async () => {
   const cs = state.newCampaignState();
   cs.character.meters.momentum = 2;
-  const r = await executeTool('burn_momentum', { original_action_score: 7, challenge_dice: [3, 9] }, cs);
+  const rollId = state.recordRoll(cs, { kind: 'action', actionScore: 7, challengeDice: [3, 9], outcome: 'miss', isMatch: false });
+  const r = await executeTool('burn_momentum', { roll_id: rollId }, cs);
   assert.ok(r.error, 'a burn where momentum (2) is lower than the original score (7) must be refused');
   assert.strictEqual(cs.character.meters.momentum, 2, 'momentum must be completely untouched after a rejected burn, not partially applied');
 });
 await check('burn_momentum also rejects the exact boundary case -- momentum equal to the original score is zero benefit, not just "not worse"', async () => {
   const cs = state.newCampaignState();
   cs.character.meters.momentum = 5;
-  const r = await executeTool('burn_momentum', { original_action_score: 5, challenge_dice: [3, 9] }, cs);
+  const rollId = state.recordRoll(cs, { kind: 'action', actionScore: 5, challengeDice: [3, 9], outcome: 'weak_hit', isMatch: false });
+  const r = await executeTool('burn_momentum', { roll_id: rollId }, cs);
   assert.ok(r.error);
   assert.strictEqual(cs.character.meters.momentum, 5);
 });
-await check('burn_momentum rejects a call missing original_action_score entirely, rather than silently skipping validation', async () => {
+await check('burn_momentum rejects a call missing roll_id, rather than accepting model-supplied roll facts', async () => {
   const cs = state.newCampaignState();
   cs.character.meters.momentum = 8;
-  const r = await executeTool('burn_momentum', { challenge_dice: [3, 9] }, cs);
+  const r = await executeTool('burn_momentum', { original_action_score: 2, challenge_dice: [3, 9] }, cs);
   assert.ok(r.error, 'a missing required parameter must not silently fall back to the old unguarded behavior');
   assert.strictEqual(cs.character.meters.momentum, 8, 'momentum must be untouched when the call is rejected for a missing parameter');
+});
+await check('burn_momentum rejects ordinary progress rolls, which cannot use the action-roll momentum rule', async () => {
+  const cs = state.newCampaignState();
+  cs.character.meters.momentum = 8;
+  const rollId = state.recordRoll(cs, { kind: 'progress', moveName: 'Fulfill Your Vow', progressScore: 4, challengeDice: [6, 9], outcome: 'miss', isMatch: false });
+  const r = await executeTool('burn_momentum', { roll_id: rollId }, cs);
+  assert.ok(r.error && r.error.includes('progress roll'));
+  assert.strictEqual(cs.character.meters.momentum, 8);
 });
 await check('marking one impact drops momentum max to 9 and reset to 1', async () => {
   const cs = state.newCampaignState();
@@ -323,6 +329,21 @@ await check('upgrade_asset tool spends 2 XP and unlocks the named ability', asyn
   assert.deepStrictEqual(cs.character.assets[0].abilities_unlocked, [1, 2]);
   assert.strictEqual(state.availableExperience(cs), 0);
 });
+await check('duplicate asset purchases and upgrades are rejected without spending any XP', async () => {
+  const cs = state.newCampaignState();
+  state.earnExperience(cs, 7);
+  await executeTool('grant_asset', { asset_name: 'Ace' }, cs);
+  const beforePurchase = state.availableExperience(cs);
+  const duplicatePurchase = await executeTool('buy_asset', { asset_name: 'Ace' }, cs);
+  assert.ok(duplicatePurchase.error);
+  assert.strictEqual(state.availableExperience(cs), beforePurchase);
+  const firstUpgrade = await executeTool('upgrade_asset', { asset_name: 'Ace', ability_number: 2 }, cs);
+  assert.ok(!firstUpgrade.error);
+  const beforeDuplicateUpgrade = state.availableExperience(cs);
+  const duplicateUpgrade = await executeTool('upgrade_asset', { asset_name: 'Ace', ability_number: 2 }, cs);
+  assert.ok(duplicateUpgrade.error);
+  assert.strictEqual(state.availableExperience(cs), beforeDuplicateUpgrade);
+});
 await check('earn_experience tool increases available experience', async () => {
   const cs = state.newCampaignState();
   const r = await executeTool('earn_experience', { amount: 4, reason: 'test' }, cs);
@@ -330,6 +351,65 @@ await check('earn_experience tool increases available experience', async () => {
 });
 
 console.log('Multi-campaign storage');
+await check('campaign transactions discard partial mutations on failure and the per-campaign queue serializes operations', async () => {
+  const record = { state: state.newCampaignState(), messages: [], pendingChoice: null };
+  await assert.rejects(() => transaction.runCampaignTransaction(record, async (working) => {
+    working.state.character.meters.health = 0;
+    working.messages.push({ role: 'user', content: 'not committed' });
+    throw new Error('provider failed');
+  }));
+  assert.strictEqual(record.state.character.meters.health, 5);
+  assert.deepStrictEqual(record.messages, []);
+
+  const serialize = transaction.createCampaignMutationQueue();
+  const order = [];
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => { releaseFirst = resolve; });
+  const first = serialize('same', async () => { order.push('first-start'); await firstGate; order.push('first-end'); });
+  const second = serialize('same', async () => { order.push('second'); });
+  await Promise.resolve();
+  assert.deepStrictEqual(order, ['first-start']);
+  releaseFirst();
+  await Promise.all([first, second]);
+  assert.deepStrictEqual(order, ['first-start', 'first-end', 'second']);
+});
+await check('atomic campaign saves retain a valid backup and automatically recover a corrupt primary', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-atomic-store-test-'));
+  try {
+    const first = { state: state.newCampaignState(), messages: [{ role: 'user', content: 'first' }] };
+    const second = transaction.cloneJson(first);
+    second.messages.push({ role: 'assistant', content: 'second' });
+    store.saveCampaignRecord(tmpDir, 'a', first);
+    store.saveCampaignRecord(tmpDir, 'a', second);
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(store.campaignBackupPath(tmpDir, 'a'), 'utf8')), first);
+    fs.writeFileSync(store.campaignPath(tmpDir, 'a'), '{broken', 'utf8');
+    const recovered = store.loadCampaignRecord(tmpDir, 'a');
+    assert.strictEqual(recovered.recoveredFromBackup, true);
+    assert.deepStrictEqual(recovered.record, first);
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(store.campaignPath(tmpDir, 'a'), 'utf8')), first);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+await check('shared image files remain referenced across duplicate campaigns and become collectible only after the final reference is removed', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-shared-image-test-'));
+  try {
+    const imageId = store.saveImage(tmpDir, Buffer.from('image'));
+    const first = { state: state.newCampaignState(), messages: [] };
+    first.state.character.portraitImageId = imageId;
+    const second = transaction.cloneJson(first);
+    store.saveCampaignRecord(tmpDir, 'a', first);
+    store.saveCampaignRecord(tmpDir, 'b', second);
+    first.state.character.portraitImageId = null;
+    store.saveCampaignRecord(tmpDir, 'a', first);
+    assert.strictEqual(store.imageReferencedByAnyCampaign(tmpDir, imageId, new Map([['a', first]])), true);
+    second.state.character.portraitImageId = null;
+    store.saveCampaignRecord(tmpDir, 'b', second);
+    assert.strictEqual(store.imageReferencedByAnyCampaign(tmpDir, imageId, new Map([['a', first], ['b', second]])), false);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
 await check('listCampaigns / deleteCampaign round-trip against a real temp directory', async () => {
   const fs = require('fs');
   const os = require('os');
@@ -339,9 +419,13 @@ await check('listCampaigns / deleteCampaign round-trip against a real temp direc
     fs.mkdirSync(require('path').join(tmpDir, 'campaigns'), { recursive: true });
     fs.writeFileSync(store.campaignPath(tmpDir, 'a'), JSON.stringify({ state: state.newCampaignState(), messages: [] }));
     fs.writeFileSync(store.campaignPath(tmpDir, 'b'), JSON.stringify({ state: state.newCampaignState(), messages: [] }));
+    fs.writeFileSync(store.campaignBackupPath(tmpDir, 'a'), '{}');
+    fs.writeFileSync(`${store.campaignPath(tmpDir, 'a')}.corrupt`, 'broken');
     assert.deepStrictEqual(store.listCampaigns(tmpDir).sort(), ['a', 'b']);
     store.deleteCampaign(tmpDir, 'a');
     assert.deepStrictEqual(store.listCampaigns(tmpDir), ['b']);
+    assert.strictEqual(fs.existsSync(store.campaignBackupPath(tmpDir, 'a')), false);
+    assert.strictEqual(fs.existsSync(`${store.campaignPath(tmpDir, 'a')}.corrupt`), false);
     store.deleteCampaign(tmpDir, 'nonexistent'); // should not throw
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -960,23 +1044,25 @@ await check('the same override applies to all 5 stats and all 4 condition meters
     assert.notStrictEqual(r.statValue, 99, `${stat} should never trust a wildly wrong reported value`);
   }
 });
-await check("derived_value: true is a real, working escape hatch for the two legitimate documented exceptions (connection rank, companion health) -- neither is the character's own stat", async () => {
+await check('typed value sources resolve connection rank and companion health from real campaign entities, never a supplied number', async () => {
   const cs = state.newCampaignState();
   cs.character.stats.heart = 1;
-  const rConnection = await executeTool('roll_action_move', { move_name: 'Develop Your Relationship', stat: 'heart', stat_value: 3, derived_value: true }, cs);
-  assert.strictEqual(rConnection.statValue, 3, "derived_value should preserve the connection-rank number, not fall back to the character's real heart");
+  const connection = state.addConnection(cs, { name: 'Test connection' });
+  state.setConnectionRank(cs, connection.id, 'formidable');
+  const rConnection = await executeTool('roll_action_move', { move_name: 'Develop Your Relationship', stat: 'heart', value_source: 'connection_rank', source_id: connection.id }, cs);
+  assert.strictEqual(rConnection.statValue, 3);
 
   cs.character.meters.health = 5;
   const companion = state.addAsset(cs, { id: 'c1', name: 'Bot', category: 'Companion' });
   companion.health = 2;
-  const rCompanion = await executeTool('roll_action_move', { move_name: 'Companion Takes a Hit', stat: 'health', stat_value: 2, derived_value: true }, cs);
-  assert.strictEqual(rCompanion.statValue, 2, "derived_value should preserve the companion's own health, not substitute the character's health");
+  const rCompanion = await executeTool('roll_action_move', { move_name: 'Companion Takes a Hit', stat: 'health', value_source: 'companion_health', source_id: companion.id }, cs);
+  assert.strictEqual(rCompanion.statValue, 2);
 });
-await check("without derived_value, the same connection/companion-style call falls back to the character's real stat instead -- the flag is required, not automatic", async () => {
+await check('legacy derived_value/stat_value input cannot bypass engine-owned character values', async () => {
   const cs = state.newCampaignState();
   cs.character.stats.heart = 1;
-  const r = await executeTool('roll_action_move', { move_name: 'Develop Your Relationship', stat: 'heart', stat_value: 3 }, cs);
-  assert.strictEqual(r.statValue, 1, 'omitting derived_value should NOT preserve an inflated/derived number');
+  const r = await executeTool('roll_action_move', { move_name: 'Develop Your Relationship', stat: 'heart', stat_value: 999, derived_value: true }, cs);
+  assert.strictEqual(r.statValue, 1, 'obsolete model-supplied escape-hatch fields must be ignored');
 });
 await check('an unrecognized stat for a move with real, known options is now rejected with a helpful error naming the actual valid stats -- the engine catching a genuinely wrong pick, not just re-verifying the number', async () => {
   const cs = state.newCampaignState();
@@ -985,10 +1071,50 @@ await check('an unrecognized stat for a move with real, known options is now rej
   assert.ok(r.error.includes('is not a valid stat for Face Danger'));
   assert.ok(r.error.includes('+edge') && r.error.includes('+heart') && r.error.includes('+iron') && r.error.includes('+shadow') && r.error.includes('+wits'), 'the error should list the real options so the model can self-correct');
 });
-await check('a move whose own options are a derived "highest of two" comparison, not a simple named choice (Endure Harm: +iron or +health, whichever is higher) correctly validates nothing at all -- an arbitrary stat name still falls through to the reported value untouched, same as before this whole validation existed', async () => {
+await check('highest/lowest sources are computed from the move\'s Dataforged option and real character values', async () => {
   const cs = state.newCampaignState();
-  const r = await executeTool('roll_action_move', { move_name: 'Endure Harm', stat: 'nonexistent_stat', stat_value: 4 }, cs);
-  assert.strictEqual(r.statValue, 4);
+  cs.character.stats.iron = 2;
+  cs.character.meters.health = 4;
+  const highest = await executeTool('roll_action_move', { move_name: 'Endure Harm', stat: 'health', value_source: 'highest' }, cs);
+  assert.strictEqual(highest.statValue, 4);
+  cs.character.stats.wits = 3;
+  const lowest = await executeTool('roll_action_move', { move_name: 'Heal', stat: 'iron', value_source: 'lowest' }, cs);
+  assert.strictEqual(lowest.statValue, 2);
+});
+await check('alternate character values and Looper time gaps require the exact owned, unlocked source asset', async () => {
+  const cs = state.newCampaignState();
+  cs.character.stats.heart = 3;
+  const ship = state.addAsset(cs, { id: 'ship1', name: 'Starship', category: 'Command Vehicle' });
+  let rejected = await executeTool('roll_action_move', { move_name: 'Withstand Damage', stat: 'heart', value_source: 'alternate_character_value', source_id: ship.id }, cs);
+  assert.ok(rejected.error, 'Starship ability 3 must be unlocked before it can authorize +heart');
+  state.unlockAssetAbility(cs, ship.id, 3);
+  const alternate = await executeTool('roll_action_move', { move_name: 'Withstand Damage', stat: 'heart', value_source: 'alternate_character_value', source_id: ship.id }, cs);
+  assert.strictEqual(alternate.statValue, 3);
+  rejected = await executeTool('roll_action_move', { move_name: 'Withstand Damage', stat: 'heart', value_source: 'alternate_character_value', source_id: 'made-up' }, cs);
+  assert.ok(rejected.error);
+
+  const looper = state.addAsset(cs, { id: 'lo1', name: 'Looper', category: 'Path' });
+  state.unlockAssetAbility(cs, looper.id, 2);
+  const loop = await executeTool('roll_action_move', { move_name: 'Loop Back', stat: 'heart', value_source: 'time_gap', source_id: looper.id, time_gap: 'hours' }, cs);
+  assert.strictEqual(loop.statValue, 3);
+  rejected = await executeTool('roll_action_move', { move_name: 'Loop Back', stat: 'heart', value_source: 'time_gap', source_id: ship.id, time_gap: 'hours' }, cs);
+  assert.ok(rejected.error);
+});
+await check('preset and omitted action dice are authorized from owned unlocked assets and remain engine-recorded', async () => {
+  const cs = state.newCampaignState();
+  const archer = state.addAsset(cs, { id: 'ar1', name: 'Archer', category: 'Path' });
+  state.unlockAssetAbility(cs, archer.id, 3);
+  const preset = await executeTool('roll_action_move', { move_name: 'Strike', stat: 'edge', action_die_mode: 'preset', preset_action_die: 5, source_id: archer.id }, cs);
+  assert.strictEqual(preset.actionDie, 5);
+  assert.ok(preset.roll_id && state.getRoll(cs, preset.roll_id).actionDieMode === 'preset');
+  const forged = await executeTool('roll_action_move', { move_name: 'Strike', stat: 'edge', action_die_mode: 'preset', preset_action_die: 6, source_id: archer.id }, cs);
+  assert.ok(forged.error, 'Archer ability 3 only authorizes a preset 5');
+
+  const sensor = state.addAsset(cs, { id: 'sensor1', name: 'Sensor Array', category: 'Module' });
+  state.unlockAssetAbility(cs, sensor.id, 2);
+  const omitted = await executeTool('roll_action_move', { move_name: 'Gather Information', stat: 'integrity', value_source: 'alternate_character_value', action_die_mode: 'omit', source_id: sensor.id }, cs);
+  assert.strictEqual(omitted.actionDie, null);
+  assert.strictEqual(omitted.actionScore, cs.character.meters.integrity);
 });
 await check('getMoveStatOptions correctly excludes Dataforged\'s "custom_stat" references (a connection\'s rank, a companion\'s own health) from validation -- these are derived_value cases, not real stat names to validate a model\'s pick against', () => {
   assert.strictEqual(data.getMoveStatOptions('Develop Your Relationship'), null, "a custom_stat reference shouldn't be treated as a real, validatable stat");
@@ -1377,13 +1503,13 @@ await check("Looper is recognized as a dice-modifying asset, with its cross-cutt
   const prompt = buildSystemPrompt(cs);
   assert.ok(prompt.includes('whenever ANY asset'));
 });
-await check("Looper's time-gap roll is correctly guided as a derived_value (not a real stat) with an explicit no-burning-momentum restriction, since that's a hard rule violation risk if missed", () => {
+await check("Looper's time-gap roll is correctly guided as an engine-owned source with an explicit no-burning-momentum restriction, since that's a hard rule violation risk if missed", () => {
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
   state.addAsset(cs, { id: 'lo1', name: 'Looper', category: 'Path' });
   const prompt = buildSystemPrompt(cs);
-  assert.ok(prompt.includes('pass this via derived_value: true on roll_action_move'));
+  assert.ok(prompt.includes('value_source "time_gap"'));
   assert.ok(prompt.includes('CANNOT be improved by burning momentum'));
 });
 await check("Crew Commander's outcome-upgrade mechanic is guided as a direct override (apply the better outcome's consequences), not a call to resolve_action_with_dice, since that tool can't express a relative one-step improvement", () => {
@@ -1516,10 +1642,26 @@ await check("Snub Fighter's victory tally is correctly distinguished from an ord
 console.log('Remaining Module findings from the 1-by-1 audit: conditional action-die rerolls, automated scans, roll-twice-choose-either, automatic hits');
 await check('reroll_action_die stays within 1-6 across many rolls', async () => {
   const cs = state.newCampaignState();
+  const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 1, adds: 0, momentum: 2, actionScore: 3, challengeDice: [4, 8], outcome: 'miss', isMatch: false });
   for (let i = 0; i < 300; i++) {
-    const r = await executeTool('reroll_action_die', {}, cs);
+    const r = await executeTool('reroll_action_die', { roll_id: rollId }, cs);
     assert.ok(r.die >= 1 && r.die <= 6);
   }
+});
+await check('reroll_action_die still supports explicit standalone d6 checks without fabricating roll provenance', async () => {
+  const r = await executeTool('reroll_action_die', {}, state.newCampaignState());
+  assert.ok(r.die >= 1 && r.die <= 6);
+  assert.strictEqual(r.standalone, true);
+});
+await check('reroll_action_die only accepts the Looper reroll add when ability 3 is actually unlocked', async () => {
+  const cs = state.newCampaignState();
+  const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, momentum: 2, actionScore: 5, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
+  const rejected = await executeTool('reroll_action_die', { roll_id: rollId, extra_add: 1 }, cs);
+  assert.ok(rejected.error && rejected.error.includes('Looper'));
+  const looper = state.addAsset(cs, { id: 'lo1', name: 'Looper', category: 'Path' });
+  state.unlockAssetAbility(cs, looper.id, 3);
+  const accepted = await executeTool('reroll_action_die', { roll_id: rollId, extra_add: 1 }, cs);
+  assert.ok(!accepted.error);
 });
 await check('the module-special guidance block is absent by default and correctly scoped to only the modules actually owned', () => {
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
@@ -1540,14 +1682,14 @@ await check("Overseer's guidance correctly distinguishes the random miss options
   const prompt = buildSystemPrompt(cs);
   assert.ok(prompt.includes('does NOT apply to the non-random miss options'));
 });
-await check('Sensor Array\'s automated-scan guidance correctly directs away from roll_action_move entirely, toward a fixed score plus reroll_challenge_dice', () => {
+await check('Sensor Array\'s automated-scan guidance uses the engine-owned omitted-die roll mode', () => {
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const cs = state.newCampaignState();
   cs.character.name = 'Test';
   state.addAsset(cs, { id: 'sa1', name: 'Sensor Array', category: 'Module' });
   const prompt = buildSystemPrompt(cs);
-  assert.ok(prompt.includes("don't call roll_action_move for this"));
-  assert.ok(prompt.includes('call reroll_challenge_dice for the two challenge dice'));
+  assert.ok(prompt.includes('action_die_mode "omit"'));
+  assert.ok(prompt.includes("Sensor Array's exact source_id"));
 });
 
 console.log('Asset-specific resource pools (ammo/cargo/shields/power/Symbiote health) -- an entire mechanical dimension with zero tracking anywhere, found via a genuine 1-by-1 asset audit');
@@ -1704,16 +1846,18 @@ console.log("Dice-modifying assets (Sleuth's \"roll three, choose two\" and simi
 await check('roll_extra_challenge_die and reroll_challenge_dice stay within 1-10 across many rolls', async () => {
   for (let i = 0; i < 300; i++) {
     const cs = state.newCampaignState();
-    const r1 = await executeTool('roll_extra_challenge_die', {}, cs);
+    const rollId = state.recordRoll(cs, { kind: 'action', actionScore: 5, challengeDice: [3, 9], outcome: 'weak_hit', isMatch: false });
+    const r1 = await executeTool('roll_extra_challenge_die', { roll_id: rollId }, cs);
     assert.ok(r1.die >= 1 && r1.die <= 10);
-    const r2 = await executeTool('reroll_challenge_dice', {}, cs);
+    const r2 = await executeTool('reroll_challenge_dice', { roll_id: rollId }, cs);
     assert.strictEqual(r2.challenge_dice.length, 2);
     for (const d of r2.challenge_dice) assert.ok(d >= 1 && d <= 10);
   }
 });
 await check('resolve_action_with_dice reproduces the exact reported scenario (score 8 vs dice 8,5 -> weak hit)', async () => {
   const cs = state.newCampaignState();
-  const r = await executeTool('resolve_action_with_dice', { action_score: 8, challenge_dice: [8, 5] }, cs);
+  const rollId = state.recordRoll(cs, { kind: 'action', actionScore: 8, challengeDice: [8, 5], outcome: 'weak_hit', isMatch: false });
+  const r = await executeTool('resolve_action_with_dice', { roll_id: rollId, challenge_dice: [8, 5] }, cs);
   assert.strictEqual(r.outcome, 'weak_hit');
   assert.strictEqual(r.is_match, false);
   assert.strictEqual(r.beatsC1, false);
@@ -1721,14 +1865,48 @@ await check('resolve_action_with_dice reproduces the exact reported scenario (sc
 });
 await check('resolve_action_with_dice correctly identifies a forced match (both dice equal) as a miss with is_match true', async () => {
   const cs = state.newCampaignState();
-  const r = await executeTool('resolve_action_with_dice', { action_score: 6, challenge_dice: [6, 6] }, cs);
+  const rollId = state.recordRoll(cs, { kind: 'action', actionScore: 6, challengeDice: [6, 6], outcome: 'miss', isMatch: true });
+  const r = await executeTool('resolve_action_with_dice', { roll_id: rollId, challenge_dice: [6, 6] }, cs);
   assert.strictEqual(r.outcome, 'miss', 'a score of 6 does not beat a challenge die of 6 -- ties go to the challenge dice');
   assert.strictEqual(r.is_match, true);
 });
 await check('resolve_action_with_dice rejects a malformed challenge_dice array cleanly, not a crash', async () => {
   const cs = state.newCampaignState();
-  const r = await executeTool('resolve_action_with_dice', { action_score: 5, challenge_dice: [5] }, cs);
+  const r = await executeTool('resolve_action_with_dice', { roll_id: 'missing', challenge_dice: [5] }, cs);
   assert.ok(r.error);
+});
+await check('resolve_action_with_dice rejects model-fabricated scores and dice for a valid roll_id', async () => {
+  const cs = state.newCampaignState();
+  const rollId = state.recordRoll(cs, { kind: 'action', actionScore: 4, challengeDice: [3, 9], outcome: 'weak_hit', isMatch: false });
+  const forgedScore = await executeTool('resolve_action_with_dice', { roll_id: rollId, action_score: 10, challenge_dice: [3, 9] }, cs);
+  assert.ok(forgedScore.error && forgedScore.error.includes('action_score'));
+  const forgedDice = await executeTool('resolve_action_with_dice', { roll_id: rollId, challenge_dice: [1, 1] }, cs);
+  assert.ok(forgedDice.error && forgedDice.error.includes('challenge_dice'));
+});
+await check('Revenant die-zeroing verifies the exact move, owned ability, momentum threshold, and burns only once', async () => {
+  const cs = state.newCampaignState();
+  cs.character.meters.momentum = 8;
+  const revenant = state.addAsset(cs, { id: 'rev1', name: 'Revenant', category: 'Deed' });
+  state.unlockAssetAbility(cs, revenant.id, 2);
+  const rollId = state.recordRoll(cs, { kind: 'progress', moveName: 'Take Decisive Action', progressScore: 6, challengeDice: [7, 9], outcome: 'miss', isMatch: false });
+  const forged = await executeTool('resolve_action_with_dice', { roll_id: rollId, dice_mode: 'revenant_zero', source_id: 'wrong', challenge_dice: [0, 9] }, cs);
+  assert.ok(forged.error);
+  assert.strictEqual(cs.character.meters.momentum, 8, 'a rejected transformation must not spend momentum');
+  const resolved = await executeTool('resolve_action_with_dice', { roll_id: rollId, dice_mode: 'revenant_zero', source_id: revenant.id, challenge_dice: [0, 9] }, cs);
+  assert.strictEqual(resolved.momentum_burn.burned, 8);
+  assert.strictEqual(cs.character.meters.momentum, cs.character.meters.momentum_reset);
+  const repeated = await executeTool('resolve_action_with_dice', { roll_id: rollId, dice_mode: 'revenant_zero', source_id: revenant.id, challenge_dice: [0, 9] }, cs);
+  assert.ok(repeated.error && repeated.error.includes('already burned'));
+});
+await check('the persisted roll ledger is bounded and expires the oldest roll ids', () => {
+  const cs = state.newCampaignState();
+  let oldest;
+  for (let i = 0; i < 51; i++) {
+    const id = state.recordRoll(cs, { kind: 'action', actionScore: 4, challengeDice: [3, 9], outcome: 'weak_hit', isMatch: false });
+    if (i === 0) oldest = id;
+  }
+  assert.strictEqual(cs.rollLedger.order.length, 50);
+  assert.throws(() => state.getRoll(cs, oldest), /Unknown or expired roll_id/);
 });
 await check('the system prompt omits the dice-modifying-asset guidance entirely when none of the 6 named assets are owned', () => {
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
@@ -1744,7 +1922,7 @@ await check('owning Sleuth reveals its full procedure, correctly named, using th
   state.addAsset(cs, { id: 'sleuth1', name: 'Sleuth', category: 'Path' });
   const prompt = buildSystemPrompt(cs);
   assert.ok(prompt.includes('(Sleuth)'));
-  assert.ok(prompt.includes('call roll_bonus_challenge_dice with the same action_score and the original two challenge_dice'));
+  assert.ok(prompt.includes("call roll_bonus_challenge_dice with that result's roll_id"));
   assert.ok(prompt.includes('If forced_match is true, use dice_used and the outcome fields directly -- no choice to offer'));
   assert.ok(prompt.includes('raise the quest'));
 });
@@ -3956,15 +4134,20 @@ await check("check_asset_bonuses genuinely applies structured effects for real w
   const preRoll = await executeTool('check_asset_bonuses', { move_name: 'Compel' }, cs);
   assert.ok(!preRoll.explicit[0].applied, 'the pre-roll call (no outcome) must not apply anything');
   assert.strictEqual(cs.character.meters.momentum, 2, 'momentum must be untouched before the post-roll call');
-  const postRoll = await executeTool('check_asset_bonuses', { move_name: 'Compel', outcome: 'strong_hit', is_match: true }, cs);
+  const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Compel', actionScore: 8, challengeDice: [2, 2], outcome: 'strong_hit', isMatch: true });
+  const postRoll = await executeTool('check_asset_bonuses', { move_name: 'Compel', roll_id: rollId, outcome: 'strong_hit', is_match: true }, cs);
   assert.strictEqual(postRoll.explicit[0].applied.momentumDelta, 2);
   assert.strictEqual(cs.character.meters.momentum, 4, 'momentum must be genuinely, actually updated in real character state, not just described in the return value');
+  const repeated = await executeTool('check_asset_bonuses', { move_name: 'Compel', roll_id: rollId, outcome: 'strong_hit', is_match: true }, cs);
+  assert.strictEqual(repeated.explicit[0].applied.already_applied, true);
+  assert.strictEqual(cs.character.meters.momentum, 4, 'a repeated post-roll call must return the prior result without applying it twice');
   const cs2 = state.newCampaignState();
   cs2.character.name = 'Test';
   cs2.character.meters.momentum = 2;
   state.addAsset(cs2, { id: 'ar1', name: 'Archer', category: 'Path' });
   state.unlockAssetAbility(cs2, 'ar1', 2);
-  const unstructured = await executeTool('check_asset_bonuses', { move_name: 'Enter the Fray', outcome: 'strong_hit', is_match: true }, cs2);
+  const rollId2 = state.recordRoll(cs2, { kind: 'action', moveName: 'Enter the Fray', actionScore: 8, challengeDice: [2, 2], outcome: 'strong_hit', isMatch: true });
+  const unstructured = await executeTool('check_asset_bonuses', { move_name: 'Enter the Fray', roll_id: rollId2, outcome: 'strong_hit', is_match: true }, cs2);
   assert.strictEqual(unstructured.explicit.length, 1);
   assert.ok(!unstructured.explicit[0].applied, 'Archer:2 has resource costs and a player choice, and must not have a false applied field');
   assert.strictEqual(cs2.character.meters.momentum, 2, 'nothing should have been touched for an ability outside the verified table');
@@ -4208,10 +4391,12 @@ await check("rollBonusChallengeDice correctly forces the matching pair (and skip
   }
 });
 await check("roll_bonus_challenge_dice works correctly as a real tool call, generalizes to Cohort's variable specialist count (not just Sleuth's fixed one extra die), and both assets' own guidance now points at this single consolidated tool instead of the old multi-step orchestration a real model was observed skipping entirely", async () => {
-  const r = await executeTool('roll_bonus_challenge_dice', { action_score: 5, original_challenge_dice: [10, 2], extra_die_count: 3 }, state.newCampaignState());
+  const rollState = state.newCampaignState();
+  const rollId = state.recordRoll(rollState, { kind: 'action', actionScore: 5, challengeDice: [10, 2], outcome: 'weak_hit', isMatch: false });
+  const r = await executeTool('roll_bonus_challenge_dice', { roll_id: rollId, extra_die_count: 3 }, rollState);
   assert.strictEqual(r.extra_dice.length, 3, 'extra_die_count should control how many bonus dice roll, covering Cohort\'s variable-specialist case');
   assert.strictEqual(r.all_dice.length, 5);
-  const bad = await executeTool('roll_bonus_challenge_dice', { action_score: 5, original_challenge_dice: [10] }, state.newCampaignState());
+  const bad = await executeTool('roll_bonus_challenge_dice', { roll_id: 'missing' }, state.newCampaignState());
   assert.ok(bad.error, 'malformed original_challenge_dice should be rejected cleanly, not crash');
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const cs = state.newCampaignState();

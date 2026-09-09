@@ -10,6 +10,82 @@ function campaignPath(userDataDir, campaignId = 'default') {
   return path.join(userDataDir, 'campaigns', `${campaignId}.json`);
 }
 
+function campaignBackupPath(userDataDir, campaignId = 'default') {
+  return `${campaignPath(userDataDir, campaignId)}.bak`;
+}
+
+function fsyncFile(file) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+/**
+ * Replaces a file through a sibling temporary file so a process interruption leaves either the
+ * old complete file or the new complete file, never a partially-written JSON document.
+ */
+function replaceFileAtomically(file, content) {
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  const temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`);
+  try {
+    fs.writeFileSync(temporary, content, { encoding: 'utf-8', flag: 'wx' });
+    fsyncFile(temporary);
+    fs.renameSync(temporary, file);
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
+}
+
+/** Saves a complete campaign atomically and retains the previous valid version as `.bak`. */
+function saveCampaignRecord(userDataDir, campaignId, record) {
+  const file = campaignPath(userDataDir, campaignId);
+  const backup = campaignBackupPath(userDataDir, campaignId);
+  const serialized = JSON.stringify(record, null, 2);
+  // Prove the value can be parsed before it replaces anything. JSON.stringify can only produce
+  // JSON-safe output here, but this also guards future serializer changes at the write boundary.
+  JSON.parse(serialized);
+
+  if (fs.existsSync(file)) {
+    const previous = fs.readFileSync(file, 'utf-8');
+    try {
+      JSON.parse(previous);
+      replaceFileAtomically(backup, previous);
+    } catch {
+      // Never replace a known-good backup with an already-corrupt primary file.
+    }
+  }
+  replaceFileAtomically(file, serialized);
+  return file;
+}
+
+/**
+ * Loads a campaign, automatically restoring the last known-good backup if the primary JSON is
+ * unreadable. The broken primary is retained as `.corrupt` for diagnosis.
+ */
+function loadCampaignRecord(userDataDir, campaignId) {
+  const file = campaignPath(userDataDir, campaignId);
+  const primaryText = fs.readFileSync(file, 'utf-8');
+  try {
+    return { record: JSON.parse(primaryText), recoveredFromBackup: false };
+  } catch (primaryError) {
+    const backup = campaignBackupPath(userDataDir, campaignId);
+    if (!fs.existsSync(backup)) throw primaryError;
+    const backupText = fs.readFileSync(backup, 'utf-8');
+    const record = JSON.parse(backupText);
+    try {
+      replaceFileAtomically(`${file}.corrupt`, primaryText);
+    } catch {
+      // Recovery must not be blocked merely because the diagnostic copy could not be written.
+    }
+    replaceFileAtomically(file, backupText);
+    return { record, recoveredFromBackup: true };
+  }
+}
+
 function imagesDir(userDataDir) {
   return path.join(userDataDir, 'images');
 }
@@ -74,6 +150,36 @@ function deleteImage(userDataDir, imageId, mime = 'image/png') {
   if (fs.existsSync(file)) fs.unlinkSync(file);
 }
 
+function campaignStateReferencesImage(state, imageId) {
+  if (!state || !imageId) return false;
+  if (state.character && state.character.portraitImageId === imageId) return true;
+  if ((state.connections || []).some((connection) => connection.imageId === imageId)) return true;
+  if ((state.illustrations || []).some((illustration) => illustration.imageId === imageId)) return true;
+  return Object.values(state.sectors || {}).some((sector) =>
+    Object.values(sector.cells || {}).some((cell) => cell.imageId === imageId)
+  );
+}
+
+/** Checks both loaded records and saves that have not been loaded into this process. */
+function imageReferencedByAnyCampaign(userDataDir, imageId, loadedCampaigns = new Map()) {
+  const checked = new Set();
+  for (const [campaignId, record] of loadedCampaigns) {
+    checked.add(campaignId);
+    if (campaignStateReferencesImage(record && record.state, imageId)) return true;
+  }
+  for (const campaignId of listCampaigns(userDataDir)) {
+    if (checked.has(campaignId)) continue;
+    try {
+      const { record } = loadCampaignRecord(userDataDir, campaignId);
+      if (campaignStateReferencesImage(record && record.state, imageId)) return true;
+    } catch {
+      // A corrupt unrelated campaign cannot prove a reference. Its own recovery remains available
+      // when it is opened; do not make every image operation fail because of it.
+    }
+  }
+  return false;
+}
+
 
 function loadConfig(userDataDir) {
   const p = configPath(userDataDir);
@@ -111,13 +217,18 @@ function listCampaigns(userDataDir) {
 }
 
 function deleteCampaign(userDataDir, campaignId) {
-  const p = campaignPath(userDataDir, campaignId);
-  if (fs.existsSync(p)) fs.unlinkSync(p);
+  const primary = campaignPath(userDataDir, campaignId);
+  for (const file of [primary, campaignBackupPath(userDataDir, campaignId), `${primary}.corrupt`]) {
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  }
 }
 
 module.exports = {
   configPath,
   campaignPath,
+  campaignBackupPath,
+  saveCampaignRecord,
+  loadCampaignRecord,
   imagesDir,
   debugLogsDir,
   debugLogPath,
@@ -129,4 +240,6 @@ module.exports = {
   saveImage,
   loadImageAsDataUrl,
   deleteImage,
+  campaignStateReferencesImage,
+  imageReferencedByAnyCampaign,
 };

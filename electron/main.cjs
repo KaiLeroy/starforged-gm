@@ -13,6 +13,7 @@ const { buildSystemPrompt, DEFAULT_NARRATIVE_RULES } = require('./engine/systemP
 const { runTurn } = require('./engine/openrouter.cjs');
 const summarizer = require('./engine/summarizer.cjs');
 const promptComposer = require('./engine/promptComposer.cjs');
+const { cloneJson, runCampaignTransaction, createCampaignMutationQueue } = require('./engine/transaction.cjs');
 const updater = require('./updater.cjs');
 
 const isDev = !app.isPackaged;
@@ -33,6 +34,7 @@ const campaigns = new Map();
  *  there's no risk of a stale snapshot ever leaking into a persisted save file. Does not survive
  *  an app restart -- an accepted tradeoff for a first version of this feature, not an oversight. */
 const undoCheckpoints = new Map();
+const serializeCampaignMutation = createCampaignMutationQueue();
 
 function userDataDir() {
   return app.getPath('userData');
@@ -40,7 +42,7 @@ function userDataDir() {
 
 /** Builds the `{baseUrl, workflowTemplate, saveImage}` shape tools.cjs's generate_image expects,
  *  or null if ComfyUI isn't configured -- generate_image reports that cleanly rather than throwing. */
-function buildImageGen() {
+function buildImageGen(onImageSaved = () => {}) {
   const config = store.loadConfig(userDataDir());
   if (!config.comfyUrl || !config.comfyWorkflow) return null;
   let workflowTemplate;
@@ -52,7 +54,11 @@ function buildImageGen() {
   return {
     baseUrl: config.comfyUrl,
     workflowTemplate,
-    saveImage: (buffer) => store.saveImage(userDataDir(), buffer),
+    saveImage: (buffer) => {
+      const imageId = store.saveImage(userDataDir(), buffer);
+      onImageSaved(imageId);
+      return imageId;
+    },
   };
 }
 
@@ -121,7 +127,7 @@ function loadCampaign(campaignId) {
   const file = store.campaignPath(userDataDir(), campaignId);
   let record;
   if (fs.existsSync(file)) {
-    record = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    record = store.loadCampaignRecord(userDataDir(), campaignId).record;
   } else {
     record = { state: stateMod.newCampaignState(), messages: [], pendingChoice: null };
   }
@@ -162,6 +168,9 @@ function loadCampaign(campaignId) {
   // mechanics, not game state.
   if (!('pendingChoice' in record)) {
     record.pendingChoice = null;
+  }
+  if (record.state && !record.state.rollLedger) {
+    record.state.rollLedger = { order: [], entries: {} };
   }
   // Backward compatibility: campaigns saved before Vehicle Troubles moved onto individual
   // vehicle assets. Two things to migrate, once, here: (1) any existing Command/Support Vehicle
@@ -211,9 +220,7 @@ function loadCampaign(campaignId) {
 function saveCampaign(campaignId) {
   const record = campaigns.get(campaignId);
   if (!record) return;
-  const file = store.campaignPath(userDataDir(), campaignId);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(record, null, 2), 'utf-8');
+  store.saveCampaignRecord(userDataDir(), campaignId, record);
 }
 
 function buildAppMenu() {
@@ -1022,8 +1029,10 @@ ipcMain.handle('images:remove-illustration', (_evt, { campaignId = 'default', id
   // forever.
   const illustration = record.state.illustrations.find((i) => i.id === id);
   stateMod.removeIllustration(record.state, id);
-  if (illustration) store.deleteImage(userDataDir(), illustration.imageId);
   saveCampaign(campaignId);
+  if (illustration && !store.imageReferencedByAnyCampaign(userDataDir(), illustration.imageId, campaigns)) {
+    store.deleteImage(userDataDir(), illustration.imageId);
+  }
   return record.state;
 });
 
@@ -1036,31 +1045,36 @@ ipcMain.handle('images:delete', (_evt, { campaignId = 'default', imageId }) => {
   const record = loadCampaign(campaignId);
   const cleared = stateMod.removeImageEverywhere(record.state, imageId);
   if (cleared.length === 0) throw new Error(`No image reference found for id "${imageId}".`);
-  store.deleteImage(userDataDir(), imageId);
   saveCampaign(campaignId);
+  if (!store.imageReferencedByAnyCampaign(userDataDir(), imageId, campaigns)) {
+    store.deleteImage(userDataDir(), imageId);
+  }
   return record.state;
 });
 
 // ---- IPC: chat turn ----
-ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
+async function sendChatTurn(evt, { campaignId = 'default', text }) {
   const config = store.loadConfig(userDataDir());
   if (!config.apiKey) {
     throw new Error('No OpenRouter API key configured. Set one in Settings first.');
   }
 
-  const record = loadCampaign(campaignId);
+  const liveRecord = loadCampaign(campaignId);
+  const checkpoint = {
+    messages: cloneJson(liveRecord.messages),
+    state: cloneJson(liveRecord.state),
+    undoneUserText: text,
+  };
+  const createdImageIds = [];
+
+  try {
+    const transaction = await runCampaignTransaction(liveRecord, async (record) => {
 
   // Snapshot everything as it is RIGHT NOW, before this turn's user message is even added --
   // this is what Undo/Edit/Regenerate roll back to. Deep-cloned via JSON round-trip (the same
   // approach the rest of this engine already uses for state, nothing fancier needed since
   // campaignState is plain, serializable data). Deliberately overwrites any earlier checkpoint:
   // undo is single-level, always referring to the most recently completed turn, not a stack.
-  undoCheckpoints.set(campaignId, {
-    messages: JSON.parse(JSON.stringify(record.messages)),
-    state: JSON.parse(JSON.stringify(record.state)),
-    undoneUserText: text,
-  });
-
   record.messages.push({ role: 'user', content: text });
 
   // Regenerate the system prompt fresh every turn so it always reflects current state.
@@ -1083,7 +1097,7 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
     model: config.model,
     messages: withSystem,
     campaignState: record.state,
-    imageGen: buildImageGen(),
+    imageGen: buildImageGen((imageId) => createdImageIds.push(imageId)),
     temperature: config.temperature,
     topP: config.topP,
     onEvent: sendEvent,
@@ -1113,7 +1127,6 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
     // one more turn) and skip the "what did the GM say" reply extraction below, since there
     // isn't a real narration yet -- just save what's there and hand the choice itself back to
     // the renderer so it can show the picker instead of treating this as a completed turn.
-    saveCampaign(campaignId);
     return { reply: '', state: record.state, pendingChoice };
   }
 
@@ -1124,11 +1137,26 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
   // next time, rather than blocking the player's turn on a maintenance step.
   await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state });
 
-  saveCampaign(campaignId);
-
   const lastAssistant = [...updated].reverse().find((m) => m.role === 'assistant' && m.content);
   return { reply: lastAssistant ? lastAssistant.content : '', state: record.state, pendingChoice: null };
-});
+    });
+
+    store.saveCampaignRecord(userDataDir(), campaignId, transaction.record);
+    campaigns.set(campaignId, transaction.record);
+    undoCheckpoints.set(campaignId, checkpoint);
+    return transaction.value;
+  } catch (error) {
+    // A generate_image tool may have persisted bytes before a later provider call failed. Since
+    // the isolated campaign transaction was never committed, none of these fresh IDs can be
+    // referenced by live state and they are safe to remove.
+    for (const imageId of createdImageIds) store.deleteImage(userDataDir(), imageId);
+    throw error;
+  }
+}
+
+ipcMain.handle('chat:send', (evt, payload) =>
+  serializeCampaignMutation(payload.campaignId || 'default', () => sendChatTurn(evt, payload))
+);
 
 // Continues a turn that present_choice paused, now that the player has actually answered --
 // see runTurn's own doc comment in openrouter.cjs for the full design. Appends a real tool-role
@@ -1138,15 +1166,18 @@ ipcMain.handle('chat:send', async (evt, { campaignId = 'default', text }) => {
 // the conversation valid even if one doesn't), then re-enters the normal turn loop to let the
 // GM continue narrating from here -- which may itself end in another pendingChoice, handled
 // exactly the same way as the first.
-ipcMain.handle('chat:resolve-choice', async (evt, { campaignId = 'default', chosenText }) => {
+async function resolveChatChoice(evt, { campaignId = 'default', chosenText }) {
   const config = store.loadConfig(userDataDir());
   if (!config.apiKey) {
     throw new Error('No OpenRouter API key configured. Set one in Settings first.');
   }
-  const record = loadCampaign(campaignId);
-  if (!record.pendingChoice) {
+  const liveRecord = loadCampaign(campaignId);
+  if (!liveRecord.pendingChoice) {
     throw new Error('No choice is currently pending for this campaign.');
   }
+  const createdImageIds = [];
+  try {
+    const transaction = await runCampaignTransaction(liveRecord, async (record) => {
   const pending = record.pendingChoice;
 
   const lastMessage = record.messages[record.messages.length - 1];
@@ -1180,7 +1211,7 @@ ipcMain.handle('chat:resolve-choice', async (evt, { campaignId = 'default', chos
     model: config.model,
     messages: withSystem,
     campaignState: record.state,
-    imageGen: buildImageGen(),
+    imageGen: buildImageGen((imageId) => createdImageIds.push(imageId)),
     temperature: config.temperature,
     topP: config.topP,
     onEvent: sendEvent,
@@ -1197,16 +1228,25 @@ ipcMain.handle('chat:resolve-choice', async (evt, { campaignId = 'default', chos
   logDebugTurn(config, campaignId, { trigger: 'chat:resolve-choice', userInput: chosenText, systemPrompt: systemMessage.content, events: capturedEvents, updated, pendingChoice: nextPendingChoice });
 
   if (nextPendingChoice) {
-    saveCampaign(campaignId);
     return { reply: '', state: record.state, pendingChoice: nextPendingChoice };
   }
 
   await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state });
-  saveCampaign(campaignId);
-
   const lastAssistant = [...updated].reverse().find((m) => m.role === 'assistant' && m.content);
   return { reply: lastAssistant ? lastAssistant.content : '', state: record.state, pendingChoice: null };
-});
+    });
+    store.saveCampaignRecord(userDataDir(), campaignId, transaction.record);
+    campaigns.set(campaignId, transaction.record);
+    return transaction.value;
+  } catch (error) {
+    for (const imageId of createdImageIds) store.deleteImage(userDataDir(), imageId);
+    throw error;
+  }
+}
+
+ipcMain.handle('chat:resolve-choice', (evt, payload) =>
+  serializeCampaignMutation(payload.campaignId || 'default', () => resolveChatChoice(evt, payload))
+);
 
 // Powers Undo, Regenerate, and Edit in the UI -- all three share this one primitive. Regenerate
 // calls this then immediately re-sends the returned undoneUserText via chat:send unmodified;

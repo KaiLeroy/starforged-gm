@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 const dice = require('./dice.cjs');
 
 const METER_BOUNDS = {
@@ -262,6 +263,7 @@ function newCampaignState() {
     lastPlayedAt: null, // ISO timestamp of the previous turn -- used to nudge toward Begin a Session after a real gap
     campaignName: null, // optional player-set nickname for this campaign, distinct from the character's name; null falls back to the character's name in the UI
     storySummary: { recent: '', distant: '' }, // multi-layer context compaction -- see summarizer.cjs. recent: moderate-detail recap of aged-out messages. distant: further-compressed long-term recap, folded in once recent grows large.
+    rollLedger: { order: [], entries: {} }, // bounded engine-owned provenance for rolls, rerolls, burns, and idempotent post-roll effects
     log: [], // { timestamp, text } -- free-form campaign notes, appended for continuity across sessions
   };
 }
@@ -460,6 +462,97 @@ function burnMomentum(state) {
   return { burned: value, resetTo: meters.momentum };
 }
 
+const MAX_ROLL_LEDGER_ENTRIES = 50;
+
+function ensureRollLedger(state) {
+  if (!state.rollLedger || !Array.isArray(state.rollLedger.order) || !state.rollLedger.entries) {
+    state.rollLedger = { order: [], entries: {} };
+  }
+  return state.rollLedger;
+}
+
+function sameDice(a, b) {
+  return Array.isArray(a) && Array.isArray(b) && a.length === 2 && b.length === 2 && a[0] === b[0] && a[1] === b[1];
+}
+
+function recordRoll(state, details) {
+  const ledger = ensureRollLedger(state);
+  const id = `roll-${crypto.randomUUID()}`;
+  const score = details.actionScore ?? details.progressScore;
+  ledger.entries[id] = {
+    id,
+    ...details,
+    authorizedActionScores: [score],
+    authorizedChallengeDice: [details.challengeDice],
+    appliedAssetEffects: {},
+    momentumBurned: false,
+    currentActionScore: score,
+    currentChallengeDice: details.challengeDice,
+    currentOutcome: details.outcome,
+    currentIsMatch: details.isMatch,
+  };
+  ledger.order.push(id);
+  while (ledger.order.length > MAX_ROLL_LEDGER_ENTRIES) {
+    delete ledger.entries[ledger.order.shift()];
+  }
+  return id;
+}
+
+function getRoll(state, rollId) {
+  const roll = ensureRollLedger(state).entries[rollId];
+  if (!roll) throw new Error(`Unknown or expired roll_id "${rollId}".`);
+  return roll;
+}
+
+function authorizeActionScore(state, rollId, actionScore) {
+  const roll = getRoll(state, rollId);
+  if (!roll.authorizedActionScores.includes(actionScore)) roll.authorizedActionScores.push(actionScore);
+  return actionScore;
+}
+
+function authorizeChallengeDice(state, rollId, challengeDice) {
+  const roll = getRoll(state, rollId);
+  if (!roll.authorizedChallengeDice.some((candidate) => sameDice(candidate, challengeDice))) {
+    roll.authorizedChallengeDice.push(challengeDice);
+  }
+  return challengeDice;
+}
+
+function isAuthorizedActionScore(state, rollId, actionScore) {
+  return getRoll(state, rollId).authorizedActionScores.includes(actionScore);
+}
+
+function isAuthorizedChallengeDice(state, rollId, challengeDice) {
+  const roll = getRoll(state, rollId);
+  return roll.authorizedChallengeDice.some((candidate) => sameDice(candidate, challengeDice));
+}
+
+function recordAppliedAssetEffect(state, rollId, effectKey, result) {
+  const roll = getRoll(state, rollId);
+  roll.appliedAssetEffects[effectKey] = JSON.parse(JSON.stringify(result));
+}
+
+function getAppliedAssetEffect(state, rollId, effectKey) {
+  return getRoll(state, rollId).appliedAssetEffects[effectKey] || null;
+}
+
+function markMomentumBurned(state, rollId) {
+  const roll = getRoll(state, rollId);
+  if (roll.momentumBurned) throw new Error(`Momentum was already burned for roll_id "${rollId}".`);
+  roll.momentumBurned = true;
+}
+
+function updateRollResolution(state, rollId, actionScore, challengeDice, result) {
+  const roll = getRoll(state, rollId);
+  authorizeActionScore(state, rollId, actionScore);
+  authorizeChallengeDice(state, rollId, challengeDice);
+  roll.currentActionScore = actionScore;
+  roll.currentChallengeDice = challengeDice;
+  roll.currentOutcome = result.outcome;
+  roll.currentIsMatch = result.is_match;
+  return roll;
+}
+
 // ---- Assets ----
 
 /** Adds an asset the character doesn't already have, with its first ability unlocked. */
@@ -643,7 +736,33 @@ function unlockAssetAbility(state, id, abilityNumber) {
   const asset = state.character.assets.find((a) => a.id === id);
   if (!asset) throw new Error(`Character doesn't have an asset with id "${id}".`);
   if (![2, 3].includes(abilityNumber)) throw new Error('abilityNumber must be 2 or 3 (the first is unlocked automatically on purchase).');
-  if (!asset.abilities_unlocked.includes(abilityNumber)) asset.abilities_unlocked.push(abilityNumber);
+  if (asset.abilities_unlocked.includes(abilityNumber)) throw new Error(`Ability ${abilityNumber} is already unlocked for "${asset.name}".`);
+  asset.abilities_unlocked.push(abilityNumber);
+  return asset;
+}
+
+function purchaseAsset(state, asset) {
+  if (state.character.assets.some((owned) => owned.id === asset.id)) {
+    throw new Error(`Character already has "${asset.name}".`);
+  }
+  if (availableExperience(state) < ASSET_PURCHASE_COST) {
+    throw new Error(`Not enough experience: has ${availableExperience(state)}, needs ${ASSET_PURCHASE_COST}.`);
+  }
+  const added = addAsset(state, asset);
+  spendExperience(state, ASSET_PURCHASE_COST);
+  return added;
+}
+
+function upgradeAsset(state, assetId, abilityNumber) {
+  const asset = state.character.assets.find((owned) => owned.id === assetId);
+  if (!asset) throw new Error(`Character doesn't have an asset with id "${assetId}".`);
+  if (![2, 3].includes(abilityNumber)) throw new Error('abilityNumber must be 2 or 3 (the first is unlocked automatically on purchase).');
+  if (asset.abilities_unlocked.includes(abilityNumber)) throw new Error(`Ability ${abilityNumber} is already unlocked for "${asset.name}".`);
+  if (availableExperience(state) < ASSET_UPGRADE_COST) {
+    throw new Error(`Not enough experience: has ${availableExperience(state)}, needs ${ASSET_UPGRADE_COST}.`);
+  }
+  unlockAssetAbility(state, assetId, abilityNumber);
+  spendExperience(state, ASSET_UPGRADE_COST);
   return asset;
 }
 
@@ -1416,6 +1535,16 @@ module.exports = {
   markProgress,
   progressBoxes,
   burnMomentum,
+  recordRoll,
+  getRoll,
+  authorizeActionScore,
+  authorizeChallengeDice,
+  isAuthorizedActionScore,
+  isAuthorizedChallengeDice,
+  recordAppliedAssetEffect,
+  getAppliedAssetEffect,
+  markMomentumBurned,
+  updateRollResolution,
   RANK_TICKS,
   METER_BOUNDS,
   DEFAULT_IMPACTS,
@@ -1439,6 +1568,8 @@ module.exports = {
   healCompanion,
   companionMaxHealth,
   unlockAssetAbility,
+  purchaseAsset,
+  upgradeAsset,
   availableExperience,
   earnExperience,
   spendExperience,

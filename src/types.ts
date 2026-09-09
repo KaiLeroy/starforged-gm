@@ -206,6 +206,23 @@ export interface LogEntry {
   text: string;
 }
 
+export interface RollLedgerEntry {
+  id: string;
+  kind: 'action' | 'progress';
+  moveName?: string;
+  actionScore?: number;
+  progressScore?: number;
+  challengeDice: [number, number];
+  authorizedActionScores: number[];
+  authorizedChallengeDice: [number, number][];
+  appliedAssetEffects: Record<string, unknown>;
+  momentumBurned: boolean;
+  currentActionScore: number;
+  currentChallengeDice: [number, number];
+  currentOutcome: 'strong_hit' | 'weak_hit' | 'miss';
+  currentIsMatch: boolean;
+}
+
 export interface CampaignState {
   version: number;
   character: Character;
@@ -224,6 +241,7 @@ export interface CampaignState {
   campaignElements: { id: string; category: string; name: string; description: string }[];
   log: LogEntry[];
   storySummary: { recent: string; distant: string };
+  rollLedger: { order: string[]; entries: Record<string, RollLedgerEntry> };
 }
 
 export type ChatRole = 'user' | 'assistant' | 'tool' | 'system';
