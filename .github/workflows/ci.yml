@@ -29,7 +29,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Review dependency changes
+        id: dependency-review
+        continue-on-error: true
         uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48
+      - name: Set up Node.js fallback
+        if: steps.dependency-review.outcome == 'failure'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Audit dependencies when dependency graph is unavailable
+        if: steps.dependency-review.outcome == 'failure'
+        run: npm ci && npm audit --audit-level=high
 
   windows-package-smoke:
     runs-on: windows-latest

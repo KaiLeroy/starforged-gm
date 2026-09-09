@@ -17,7 +17,8 @@ function campaignBackupPath(userDataDir, campaignId = 'default') {
 }
 
 function fsyncFile(file) {
-  const fd = fs.openSync(file, 'r');
+  // Windows requires a writable handle for FlushFileBuffers; r+ works there and on POSIX.
+  const fd = fs.openSync(file, 'r+');
   try {
     fs.fsyncSync(fd);
   } finally {
