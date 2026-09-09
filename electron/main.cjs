@@ -16,6 +16,7 @@ const promptComposer = require('./engine/promptComposer.cjs');
 const { cloneJson, runCampaignTransaction, createCampaignMutationQueue } = require('./engine/transaction.cjs');
 const validation = require('./engine/validation.cjs');
 const credentials = require('./engine/credentials.cjs');
+const { installIpcBoundary } = require('./engine/ipcBoundary.cjs');
 const updater = require('./updater.cjs');
 
 const isDev = !app.isPackaged;
@@ -52,24 +53,19 @@ const MUTATING_IPC = new Set([
   'clocks:create', 'clocks:advance', 'clocks:stop', 'character:set-aboard-vehicle',
   'character:set-vehicle-condition', 'character:discard-asset',
   'images:generate-portrait', 'images:generate-location', 'images:generate-connection',
-  'images:generate-illustration', 'images:remove-illustration', 'images:delete', 'chat:undo',
+  'images:generate-illustration', 'images:remove-illustration', 'images:delete',
+  'debugLog:clear', 'chat:undo',
 ]);
 
 // Every renderer-to-main call passes the same bounded, prototype-safe validation boundary.
 // Campaign mutations also share one per-campaign queue, including manual edits and image work.
-const nativeIpcHandle = ipcMain.handle.bind(ipcMain);
-ipcMain.handle = (channel, listener) => nativeIpcHandle(channel, async (evt, ...args) => {
-  args.forEach((arg) => validation.validateIpcPayload(channel, arg));
-  const run = () => listener(evt, ...args);
-  if (!MUTATING_IPC.has(channel)) return run();
-  const payload = args[0];
-  const campaignId = typeof payload === 'string' ? payload : (payload && payload.campaignId) || '__new_campaign__';
-  try {
-    return await serializeCampaignMutation(campaignId, run);
-  } catch (error) {
+installIpcBoundary(ipcMain, {
+  validate: validation.validateIpcPayload,
+  isMutating: (channel) => MUTATING_IPC.has(channel),
+  serialize: serializeCampaignMutation,
+  onMutationError: (campaignId) => {
     if (campaignId !== '__new_campaign__') campaigns.delete(campaignId);
-    throw error;
-  }
+  },
 });
 
 function userDataDir() {
@@ -210,6 +206,28 @@ async function manualGenerateImage(prompt) {
   }
   const buffer = await comfyui.generateImage({ baseUrl: config.comfyUrl, workflowTemplate, prompt });
   return store.saveImage(userDataDir(), buffer);
+}
+
+function garbageCollectImages() {
+  try { return store.collectOrphanImages(userDataDir(), campaigns); }
+  catch (error) {
+    console.error('Image garbage collection failed:', error.message);
+    return { scanned: 0, deleted: [], skipped: [], complete: false };
+  }
+}
+
+async function generateAndAttachImage(campaignId, prompt, attach) {
+  const record = loadCampaign(campaignId);
+  const imageId = await manualGenerateImage(prompt);
+  try {
+    attach(record.state, imageId);
+    saveCampaign(campaignId);
+  } catch (error) {
+    store.deleteImage(userDataDir(), imageId);
+    throw error;
+  }
+  garbageCollectImages();
+  return record.state;
 }
 
 function loadCampaign(campaignId) {
@@ -405,6 +423,9 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(() => false);
   buildAppMenu();
   createWindow();
+  garbageCollectImages();
+  try { store.pruneExpiredDebugLogs(userDataDir()); }
+  catch (error) { console.error('Debug-log retention cleanup failed:', error.message); }
   updater.setup({ ipcMain, isDev, getMainWindow: () => mainWindow, app });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -464,6 +485,7 @@ ipcMain.handle('campaign:get', (_evt, campaignId = 'default') => {
 ipcMain.handle('campaign:delete', (_evt, campaignId) => {
   campaigns.delete(campaignId);
   store.deleteCampaign(userDataDir(), campaignId);
+  garbageCollectImages();
   return true;
 });
 
@@ -479,8 +501,8 @@ ipcMain.handle('campaign:duplicate', (_evt, { campaignId }) => {
   const newId = `campaign-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   // Deep clone via JSON round-trip -- campaign state is already fully JSON-serializable (it's
   // written to disk the same way), so this is safe and avoids the two campaigns ever sharing
-  // mutable object references. Image files aren't duplicated -- they're immutable once
-  // generated and content-addressed by id, so both campaigns can safely reference the same ones.
+  // mutable object references. Image files aren't duplicated: the reference-aware collector
+  // keeps a shared file until the final campaign releases it.
   const clonedState = JSON.parse(JSON.stringify(original.state));
   const baseName = clonedState.campaignName || clonedState.character.name || 'Unnamed Ironsworn';
   clonedState.campaignName = `${baseName} (copy)`;
@@ -783,6 +805,26 @@ ipcMain.handle('debugLog:reveal', (_evt, { campaignId = 'default' } = {}) => {
   fs.mkdirSync(dir, { recursive: true });
   shell.openPath(dir);
   return { opened: true, path: dir, fileNotYetCreated: true };
+});
+
+ipcMain.handle('debugLog:status', (_evt, { campaignId = 'default' } = {}) => {
+  return store.debugLogStatus(userDataDir(), campaignId);
+});
+
+ipcMain.handle('debugLog:clear', (_evt, { campaignId = 'default' } = {}) => {
+  return store.clearDebugLogs(userDataDir(), campaignId);
+});
+
+ipcMain.handle('debugLog:export', async (_evt, { campaignId = 'default' } = {}) => {
+  const status = store.debugLogStatus(userDataDir(), campaignId);
+  if (!status.exists) throw new Error('No debug log exists for this campaign yet.');
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export Debug Log',
+    defaultPath: `starforged-debug-${campaignId}.jsonl`,
+    filters: [{ name: 'JSON Lines', extensions: ['jsonl'] }],
+  });
+  if (canceled || !filePath) return { canceled: true };
+  return { canceled: false, ...store.exportDebugLogs(userDataDir(), campaignId, filePath) };
 });
 
 // ---- IPC: full asset catalog, every category, for looking up an OWNED asset's ability text
@@ -1103,9 +1145,8 @@ ipcMain.handle('oracles:roll', (_evt, { oracleId }) => {
 });
 
 // ---- IPC: images (portraits, locations, connections, story illustrations) ----
-ipcMain.handle('comfy:test-connection', async () => {
-  const config = loadRuntimeConfig();
-  return comfyui.testConnection(config.comfyUrl);
+ipcMain.handle('comfy:test-connection', async (_evt, { comfyUrl } = {}) => {
+  return comfyui.testConnection(comfyUrl);
 });
 
 ipcMain.handle('images:get', (_evt, { imageId }) => {
@@ -1113,35 +1154,19 @@ ipcMain.handle('images:get', (_evt, { imageId }) => {
 });
 
 ipcMain.handle('images:generate-portrait', async (_evt, { campaignId = 'default', prompt }) => {
-  const record = loadCampaign(campaignId);
-  const imageId = await manualGenerateImage(prompt);
-  stateMod.setPortraitImage(record.state, imageId);
-  saveCampaign(campaignId);
-  return record.state;
+  return generateAndAttachImage(campaignId, prompt, (state, imageId) => stateMod.setPortraitImage(state, imageId));
 });
 
 ipcMain.handle('images:generate-location', async (_evt, { campaignId = 'default', sectorId = null, cell, prompt }) => {
-  const record = loadCampaign(campaignId);
-  const imageId = await manualGenerateImage(prompt);
-  stateMod.setCellImage(record.state, sectorId, cell, imageId);
-  saveCampaign(campaignId);
-  return record.state;
+  return generateAndAttachImage(campaignId, prompt, (state, imageId) => stateMod.setCellImage(state, sectorId, cell, imageId));
 });
 
 ipcMain.handle('images:generate-connection', async (_evt, { campaignId = 'default', connectionId, prompt }) => {
-  const record = loadCampaign(campaignId);
-  const imageId = await manualGenerateImage(prompt);
-  stateMod.setConnectionImage(record.state, connectionId, imageId);
-  saveCampaign(campaignId);
-  return record.state;
+  return generateAndAttachImage(campaignId, prompt, (state, imageId) => stateMod.setConnectionImage(state, connectionId, imageId));
 });
 
 ipcMain.handle('images:generate-illustration', async (_evt, { campaignId = 'default', prompt, caption }) => {
-  const record = loadCampaign(campaignId);
-  const imageId = await manualGenerateImage(prompt);
-  stateMod.addIllustration(record.state, { imageId, caption });
-  saveCampaign(campaignId);
-  return record.state;
+  return generateAndAttachImage(campaignId, prompt, (state, imageId) => stateMod.addIllustration(state, { imageId, caption }));
 });
 
 ipcMain.handle('images:remove-illustration', (_evt, { campaignId = 'default', id }) => {
@@ -1152,9 +1177,7 @@ ipcMain.handle('images:remove-illustration', (_evt, { campaignId = 'default', id
   const illustration = record.state.illustrations.find((i) => i.id === id);
   stateMod.removeIllustration(record.state, id);
   saveCampaign(campaignId);
-  if (illustration && !store.imageReferencedByAnyCampaign(userDataDir(), illustration.imageId, campaigns)) {
-    store.deleteImage(userDataDir(), illustration.imageId);
-  }
+  if (illustration) garbageCollectImages();
   return record.state;
 });
 
@@ -1168,9 +1191,7 @@ ipcMain.handle('images:delete', (_evt, { campaignId = 'default', imageId }) => {
   const cleared = stateMod.removeImageEverywhere(record.state, imageId);
   if (cleared.length === 0) throw new Error(`No image reference found for id "${imageId}".`);
   saveCampaign(campaignId);
-  if (!store.imageReferencedByAnyCampaign(userDataDir(), imageId, campaigns)) {
-    store.deleteImage(userDataDir(), imageId);
-  }
+  garbageCollectImages();
   return record.state;
 });
 
@@ -1267,6 +1288,7 @@ async function sendChatTurn(evt, { campaignId = 'default', text }, signal) {
     store.saveCampaignRecord(userDataDir(), campaignId, transaction.record, { expectedRevision: liveRecord.revision || 0 });
     campaigns.set(campaignId, transaction.record);
     undoCheckpoints.set(campaignId, checkpoint);
+    garbageCollectImages();
     return transaction.value;
   } catch (error) {
     // A generate_image tool may have persisted bytes before a later provider call failed. Since
@@ -1372,6 +1394,7 @@ async function resolveChatChoice(evt, { campaignId = 'default', chosenText }, si
     });
     store.saveCampaignRecord(userDataDir(), campaignId, transaction.record, { expectedRevision: liveRecord.revision || 0 });
     campaigns.set(campaignId, transaction.record);
+    garbageCollectImages();
     return transaction.value;
   } catch (error) {
     for (const imageId of createdImageIds) store.deleteImage(userDataDir(), imageId);

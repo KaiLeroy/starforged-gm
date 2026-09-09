@@ -391,7 +391,7 @@ await check('atomic campaign saves retain a valid backup and automatically recov
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
-await check('shared image files remain referenced across duplicate campaigns and become collectible only after the final reference is removed', async () => {
+await check('shared image files remain referenced across duplicates and recovery backups until the final recoverable reference is removed', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-shared-image-test-'));
   try {
     const imageId = store.saveImage(tmpDir, Buffer.from('image'));
@@ -404,6 +404,11 @@ await check('shared image files remain referenced across duplicate campaigns and
     store.saveCampaignRecord(tmpDir, 'a', first);
     assert.strictEqual(store.imageReferencedByAnyCampaign(tmpDir, imageId, new Map([['a', first]])), true);
     second.state.character.portraitImageId = null;
+    store.saveCampaignRecord(tmpDir, 'b', second);
+    // The immediately previous saves are recoverable and still reference the image. One more
+    // successful save rotates each backup to the reference-free state.
+    assert.strictEqual(store.imageReferencedByAnyCampaign(tmpDir, imageId, new Map([['a', first], ['b', second]])), true);
+    store.saveCampaignRecord(tmpDir, 'a', first);
     store.saveCampaignRecord(tmpDir, 'b', second);
     assert.strictEqual(store.imageReferencedByAnyCampaign(tmpDir, imageId, new Map([['a', first], ['b', second]])), false);
   } finally {

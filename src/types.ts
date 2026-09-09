@@ -332,6 +332,9 @@ export interface GameBridge {
   exportCampaignStory: (payload: { campaignId: string }) => Promise<{ canceled: boolean; filePath?: string }>;
   openExternalLink: (url: string) => Promise<{ opened: boolean; error?: string }>;
   revealDebugLog: (campaignId: string) => Promise<{ opened: boolean; path: string; fileNotYetCreated?: boolean }>;
+  getDebugLogStatus: (campaignId: string) => Promise<{ exists: boolean; sizeBytes: number; fileCount: number; maxBytesPerFile: number; maxFiles: number; maxAgeDays: number }>;
+  clearDebugLog: (campaignId: string) => Promise<{ deleted: number }>;
+  exportDebugLog: (campaignId: string) => Promise<{ canceled: boolean; filePath?: string; fileCount?: number }>;
   importCampaign: () => Promise<{ canceled: boolean; campaignId?: string }>;
   exportCharacter: (payload: { campaignId: string }) => Promise<{ canceled: boolean; filePath?: string }>;
   importCharacter: () => Promise<{ canceled: boolean; character?: Character; truths?: Record<string, Truth>; backgroundVow?: string | null }>;
@@ -392,7 +395,7 @@ export interface GameBridge {
   removeCampaignElementManual: (payload: { campaignId: string; id: string }) => Promise<CampaignState>;
   getCampaignElementCategories: () => Promise<string[]>;
 
-  testComfyConnection: () => Promise<unknown>;
+  testComfyConnection: (comfyUrl: string) => Promise<unknown>;
   getImage: (imageId: string | null) => Promise<string | null>;
   generatePortrait: (payload: { campaignId: string; prompt: string }) => Promise<CampaignState>;
   generateLocationImage: (payload: { campaignId: string; cell: string; prompt: string }) => Promise<CampaignState>;
