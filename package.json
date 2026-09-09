@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "description": "A solo AI game master for Ironsworn: Starforged, powered by OpenRouter and grounded in the official Dataforged ruleset.",
   "main": "electron/main.cjs",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev:renderer": "vite",
@@ -16,7 +17,11 @@
     "test:comfyui": "node electron/engine/__selftest_comfyui__.cjs",
     "test:prompt-composer": "node electron/engine/__selftest_promptComposer__.cjs",
     "test:updater": "node electron/__selftest_updater__.cjs",
-    "test": "npm run test:engine && npm run test:openrouter-loop && npm run test:summarizer && npm run test:comfyui && npm run test:prompt-composer && npm run test:updater",
+    "test:security": "node electron/engine/__selftest_security__.cjs",
+    "test": "npm run test:engine && npm run test:openrouter-loop && npm run test:summarizer && npm run test:comfyui && npm run test:prompt-composer && npm run test:updater && npm run test:security",
+    "typecheck": "tsc --noEmit",
+    "validate:json": "node scripts/validate-json.cjs",
+    "verify": "npm test && npm run typecheck && npm run validate:json && npm run build && npm audit --audit-level=high",
     "playtest": "node electron/engine/__playtest_simulation__.cjs",
     "dist:win": "npm run build && electron-builder --win",
     "dist:win:publish": "npm run build && electron-builder --win --publish always"
@@ -31,13 +36,13 @@
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.5.4",
-    "vite": "^5.4.0",
+    "vite": "^8.2.2",
     "wait-on": "^7.2.0"
   },
   "build": {

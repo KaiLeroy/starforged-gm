@@ -1,4 +1,5 @@
 'use strict';
+const { fetchWithTimeout, readResponseBuffer, readResponseJson, readResponseText, combinedSignal, sleep } = require('./network.cjs');
 
 const DEFAULT_TIMEOUT_MS = 180000; // local image gen is hardware-dependent; 3 minutes is a generous ceiling
 const POLL_INTERVAL_MS = 1500;
@@ -61,60 +62,75 @@ function prepareWorkflow(workflowTemplate, prompt) {
 
 function normalizeBaseUrl(baseUrl) {
   if (!baseUrl) throw new Error('No ComfyUI server URL configured.');
-  return baseUrl.replace(/\/+$/, '');
+  const url = new URL(baseUrl);
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('ComfyUI URL must use HTTP or HTTPS.');
+  const host = url.hostname.toLowerCase();
+  const loopback = host === 'localhost' || host === '::1' || host === '[::1]' || /^127(?:\.\d{1,3}){3}$/.test(host);
+  if (!loopback) throw new Error('For safety, ComfyUI must use a loopback address (localhost, 127.0.0.1, or ::1).');
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  return url.toString().replace(/\/$/, '');
 }
 
 /** Quick reachability check for a "Test Connection" button -- hits ComfyUI's system_stats endpoint. */
-async function testConnection(baseUrl) {
+async function testConnection(baseUrl, { signal } = {}) {
   const base = normalizeBaseUrl(baseUrl);
   let res;
   try {
-    res = await fetch(`${base}/system_stats`);
+    res = await fetchWithTimeout(`${base}/system_stats`, {}, { timeoutMs: 15000, signal });
   } catch (err) {
     throw new Error(`Could not reach ComfyUI at ${base}: ${err.message}`);
   }
-  if (!res.ok) throw new Error(`ComfyUI at ${base} returned HTTP ${res.status}.`);
-  return res.json();
+  if (!res.ok) {
+    await readResponseText(res, 64 * 1024).catch(() => '');
+    throw new Error(`ComfyUI at ${base} returned HTTP ${res.status}.`);
+  }
+  return readResponseJson(res, 1024 * 1024);
 }
 
 /**
  * Submits the workflow, polls /history until the image is ready (or times out), fetches the
  * raw image bytes via /view. Returns a Buffer -- the caller decides where to save it.
  */
-async function generateImage({ baseUrl, workflowTemplate, prompt, timeoutMs = DEFAULT_TIMEOUT_MS, onProgress = () => {} }) {
+async function generateImage({ baseUrl, workflowTemplate, prompt, timeoutMs = DEFAULT_TIMEOUT_MS, onProgress = () => {}, signal }) {
   const base = normalizeBaseUrl(baseUrl);
+  const operation = combinedSignal(signal, timeoutMs);
+  try {
   const workflow = prepareWorkflow(workflowTemplate, prompt);
   const clientId = `sfgm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
   onProgress('Submitting to ComfyUI…');
   let submitRes;
   try {
-    submitRes = await fetch(`${base}/prompt`, {
+    submitRes = await fetchWithTimeout(`${base}/prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: workflow, client_id: clientId }),
-    });
+    }, { timeoutMs: 30000, signal: operation.signal });
   } catch (err) {
     throw new Error(`Could not reach ComfyUI at ${base}: ${err.message}`);
   }
   if (!submitRes.ok) {
-    const text = await submitRes.text().catch(() => '');
+    const text = await readResponseText(submitRes, 64 * 1024).catch(() => '');
     throw new Error(`ComfyUI rejected the workflow (HTTP ${submitRes.status}): ${text.slice(0, 500)}`);
   }
-  const submitData = await submitRes.json();
+  const submitData = await readResponseJson(submitRes, 1024 * 1024);
   const promptId = submitData.prompt_id;
   if (!promptId) throw new Error('ComfyUI accepted the request but did not return a prompt_id.');
 
   onProgress('Generating…');
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await sleep(POLL_INTERVAL_MS, operation.signal);
     let hist;
     try {
-      const histRes = await fetch(`${base}/history/${promptId}`);
-      if (!histRes.ok) continue;
-      hist = await histRes.json();
-    } catch {
+      const histRes = await fetchWithTimeout(`${base}/history/${encodeURIComponent(promptId)}`, {}, { timeoutMs: 15000, signal: operation.signal });
+      if (!histRes.ok) {
+        await readResponseText(histRes, 64 * 1024).catch(() => '');
+        continue;
+      }
+      hist = await readResponseJson(histRes, 4 * 1024 * 1024);
+    } catch (error) {
+      if (operation.signal.aborted) throw error;
       continue; // transient -- keep polling until the timeout
     }
     const entry = hist[promptId];
@@ -129,14 +145,27 @@ async function generateImage({ baseUrl, workflowTemplate, prompt, timeoutMs = DE
         const img = images[0];
         onProgress('Fetching image…');
         const viewUrl = `${base}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=${encodeURIComponent(img.type || 'output')}`;
-        const imgRes = await fetch(viewUrl);
-        if (!imgRes.ok) throw new Error(`ComfyUI generated the image but it couldn't be fetched (HTTP ${imgRes.status}).`);
-        const arrayBuffer = await imgRes.arrayBuffer();
-        return Buffer.from(arrayBuffer);
+        const imgRes = await fetchWithTimeout(viewUrl, {}, { timeoutMs: 30000, signal: operation.signal });
+        if (!imgRes.ok) {
+          await readResponseText(imgRes, 64 * 1024).catch(() => '');
+          throw new Error(`ComfyUI generated the image but it couldn't be fetched (HTTP ${imgRes.status}).`);
+        }
+        const contentType = (imgRes.headers?.get?.('content-type') || 'image/png').split(';')[0].trim().toLowerCase();
+        const buffer = await readResponseBuffer(imgRes, 25 * 1024 * 1024);
+        if (contentType !== 'image/png') throw new Error(`ComfyUI returned an unsupported image type (${contentType || 'unknown'}); PNG is required.`);
+        const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        if (buffer.length < 24 || !buffer.subarray(0, 8).equals(signature)) throw new Error('ComfyUI returned bytes that are not a valid PNG image.');
+        const width = buffer.readUInt32BE(16);
+        const height = buffer.readUInt32BE(20);
+        if (!width || !height || width > 8192 || height > 8192) throw new Error('ComfyUI image dimensions are invalid or exceed 8192×8192.');
+        return buffer;
       }
     }
   }
   throw new Error(`Timed out waiting for ComfyUI after ${Math.round(timeoutMs / 1000)}s. It may still be generating -- check the ComfyUI window.`);
+  } finally {
+    operation.dispose();
+  }
 }
 
 module.exports = { prepareWorkflow, testConnection, generateImage, randomSeed, PLACEHOLDER };

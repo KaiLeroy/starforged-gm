@@ -1,12 +1,14 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { assertCampaignId, assertImageId, MAX_IMPORT_BYTES } = require('./validation.cjs');
 
 function configPath(userDataDir) {
   return path.join(userDataDir, 'config.json');
 }
 
 function campaignPath(userDataDir, campaignId = 'default') {
+  assertCampaignId(campaignId);
   return path.join(userDataDir, 'campaigns', `${campaignId}.json`);
 }
 
@@ -15,7 +17,8 @@ function campaignBackupPath(userDataDir, campaignId = 'default') {
 }
 
 function fsyncFile(file) {
-  const fd = fs.openSync(file, 'r');
+  // Windows requires a writable handle for FlushFileBuffers; r+ works there and on POSIX.
+  const fd = fs.openSync(file, 'r+');
   try {
     fs.fsyncSync(fd);
   } finally {
@@ -41,9 +44,20 @@ function replaceFileAtomically(file, content) {
 }
 
 /** Saves a complete campaign atomically and retains the previous valid version as `.bak`. */
-function saveCampaignRecord(userDataDir, campaignId, record) {
+function saveCampaignRecord(userDataDir, campaignId, record, { expectedRevision } = {}) {
   const file = campaignPath(userDataDir, campaignId);
   const backup = campaignBackupPath(userDataDir, campaignId);
+  if (expectedRevision !== undefined) {
+    let currentRevision = 0;
+    if (fs.existsSync(file)) {
+      const current = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      currentRevision = Number.isInteger(current.revision) ? current.revision : 0;
+    }
+    if (currentRevision !== expectedRevision) {
+      throw new Error(`Campaign changed on disk (expected revision ${expectedRevision}, found ${currentRevision}). Reload and retry.`);
+    }
+    record.revision = currentRevision + 1;
+  }
   const serialized = JSON.stringify(record, null, 2);
   // Prove the value can be parsed before it replaces anything. JSON.stringify can only produce
   // JSON-safe output here, but this also guards future serializer changes at the write boundary.
@@ -68,6 +82,7 @@ function saveCampaignRecord(userDataDir, campaignId, record) {
  */
 function loadCampaignRecord(userDataDir, campaignId) {
   const file = campaignPath(userDataDir, campaignId);
+  if (fs.statSync(file).size > MAX_IMPORT_BYTES) throw new Error('Campaign save exceeds the 20 MB safety limit.');
   const primaryText = fs.readFileSync(file, 'utf-8');
   try {
     return { record: JSON.parse(primaryText), recoveredFromBackup: false };
@@ -95,6 +110,7 @@ function debugLogsDir(userDataDir) {
 }
 
 function debugLogPath(userDataDir, campaignId = 'default') {
+  assertCampaignId(campaignId);
   return path.join(debugLogsDir(userDataDir), `${campaignId}.jsonl`);
 }
 
@@ -136,6 +152,7 @@ function saveImage(userDataDir, buffer, ext = 'png') {
 
 function loadImageAsDataUrl(userDataDir, imageId, mime = 'image/png') {
   if (!imageId) return null;
+  assertImageId(imageId);
   const ext = mime === 'image/png' ? 'png' : 'bin';
   const file = path.join(imagesDir(userDataDir), `${imageId}.${ext}`);
   if (!fs.existsSync(file)) return null;
@@ -145,6 +162,7 @@ function loadImageAsDataUrl(userDataDir, imageId, mime = 'image/png') {
 
 function deleteImage(userDataDir, imageId, mime = 'image/png') {
   if (!imageId) return;
+  assertImageId(imageId);
   const ext = mime === 'image/png' ? 'png' : 'bin';
   const file = path.join(imagesDir(userDataDir), `${imageId}.${ext}`);
   if (fs.existsSync(file)) fs.unlinkSync(file);
@@ -213,7 +231,10 @@ function listCampaigns(userDataDir) {
   return fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.json'))
-    .map((f) => f.replace(/\.json$/, ''));
+    .map((f) => f.replace(/\.json$/, ''))
+    .filter((id) => {
+      try { assertCampaignId(id); return true; } catch { return false; }
+    });
 }
 
 function deleteCampaign(userDataDir, campaignId) {

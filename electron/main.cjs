@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, safeStorage, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -14,6 +14,8 @@ const { runTurn } = require('./engine/openrouter.cjs');
 const summarizer = require('./engine/summarizer.cjs');
 const promptComposer = require('./engine/promptComposer.cjs');
 const { cloneJson, runCampaignTransaction, createCampaignMutationQueue } = require('./engine/transaction.cjs');
+const validation = require('./engine/validation.cjs');
+const credentials = require('./engine/credentials.cjs');
 const updater = require('./updater.cjs');
 
 const isDev = !app.isPackaged;
@@ -35,15 +37,102 @@ const campaigns = new Map();
  *  an app restart -- an accepted tradeoff for a first version of this feature, not an oversight. */
 const undoCheckpoints = new Map();
 const serializeCampaignMutation = createCampaignMutationQueue();
+const activeChatOperations = new Map();
+
+const MUTATING_IPC = new Set([
+  'campaign:delete', 'campaign:rename', 'campaign:duplicate', 'campaign:import',
+  'campaign:apply_imported_character', 'campaign:new', 'sector:update-cell',
+  'sector:add-feature', 'sector:remove-feature', 'sector:set-current',
+  'sector:create-passage', 'sector:remove-passage', 'sector:link-passage',
+  'sector:set-info', 'sector:create', 'sector:switch', 'character:update-flavor',
+  'character:update-stats', 'impacts:toggle', 'impacts:add-other',
+  'impacts:remove-other', 'truths:roll', 'truths:choose', 'truths:clear',
+  'connections:add', 'connections:update', 'connections:remove', 'log:add',
+  'flags:add', 'flags:remove', 'campaignElements:add', 'campaignElements:remove',
+  'clocks:create', 'clocks:advance', 'clocks:stop', 'character:set-aboard-vehicle',
+  'character:set-vehicle-condition', 'character:discard-asset',
+  'images:generate-portrait', 'images:generate-location', 'images:generate-connection',
+  'images:generate-illustration', 'images:remove-illustration', 'images:delete', 'chat:undo',
+]);
+
+// Every renderer-to-main call passes the same bounded, prototype-safe validation boundary.
+// Campaign mutations also share one per-campaign queue, including manual edits and image work.
+const nativeIpcHandle = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, listener) => nativeIpcHandle(channel, async (evt, ...args) => {
+  args.forEach((arg) => validation.validateIpcPayload(channel, arg));
+  const run = () => listener(evt, ...args);
+  if (!MUTATING_IPC.has(channel)) return run();
+  const payload = args[0];
+  const campaignId = typeof payload === 'string' ? payload : (payload && payload.campaignId) || '__new_campaign__';
+  try {
+    return await serializeCampaignMutation(campaignId, run);
+  } catch (error) {
+    if (campaignId !== '__new_campaign__') campaigns.delete(campaignId);
+    throw error;
+  }
+});
 
 function userDataDir() {
   return app.getPath('userData');
 }
 
+function loadRuntimeConfig() {
+  return credentials.runtimeConfig(store, userDataDir(), safeStorage);
+}
+
+function readBoundedJsonFile(filePath, label) {
+  if (fs.statSync(filePath).size > validation.MAX_IMPORT_BYTES) {
+    throw new Error(`${label} exceeds the 20 MB safety limit.`);
+  }
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
+function normalizeImportedCharacter(imported) {
+  const defaults = stateMod.newCampaignState().character;
+  const character = {
+    ...defaults,
+    ...cloneJson(imported),
+    stats: { ...defaults.stats, ...(imported.stats || {}) },
+    meters: { ...defaults.meters, ...(imported.meters || {}) },
+    experience: { ...defaults.experience, ...(imported.experience || {}) },
+    impacts: { ...defaults.impacts, ...(imported.impacts || {}) },
+    assets: Array.isArray(imported.assets) ? cloneJson(imported.assets) : [],
+  };
+  for (const asset of character.assets) {
+    const official = dataMod.findAsset(asset.id);
+    if (!official) throw new Error(`Character import contains an unknown asset id: ${asset.id}`);
+    asset.name = official.Name;
+    asset.category = (official['Asset Type'] || '').split('/').pop();
+    asset.abilities_unlocked = [...new Set(asset.abilities_unlocked || [1])].filter((n) => Number.isInteger(n) && n >= 1 && n <= 3);
+    if (asset.abilities_unlocked.length === 0) asset.abilities_unlocked = [1];
+  }
+  return character;
+}
+
+function normalizeImportedCampaign(parsed) {
+  if (parsed.version !== undefined && parsed.version !== 1) throw new Error(`Unsupported campaign save version: ${parsed.version}`);
+  const defaults = stateMod.newCampaignState();
+  const incoming = cloneJson(parsed.state);
+  const normalized = {
+    version: 1,
+    revision: 0,
+    state: {
+      ...defaults,
+      ...incoming,
+      character: normalizeImportedCharacter(incoming.character),
+      storySummary: { ...defaults.storySummary, ...(incoming.storySummary || {}) },
+    },
+    messages: Array.isArray(parsed.messages) ? cloneJson(parsed.messages) : [],
+    pendingChoice: parsed.pendingChoice ? cloneJson(parsed.pendingChoice) : null,
+  };
+  stateMod.applyImpactEffects(normalized.state);
+  return normalized;
+}
+
 /** Builds the `{baseUrl, workflowTemplate, saveImage}` shape tools.cjs's generate_image expects,
  *  or null if ComfyUI isn't configured -- generate_image reports that cleanly rather than throwing. */
-function buildImageGen(onImageSaved = () => {}) {
-  const config = store.loadConfig(userDataDir());
+function buildImageGen(onImageSaved = () => {}, signal) {
+  const config = loadRuntimeConfig();
   if (!config.comfyUrl || !config.comfyWorkflow) return null;
   let workflowTemplate;
   try {
@@ -54,6 +143,7 @@ function buildImageGen(onImageSaved = () => {}) {
   return {
     baseUrl: config.comfyUrl,
     workflowTemplate,
+    signal,
     saveImage: (buffer) => {
       const imageId = store.saveImage(userDataDir(), buffer);
       onImageSaved(imageId);
@@ -109,7 +199,7 @@ function logDebugTurn(config, campaignId, { trigger, userInput, systemPrompt, ev
  *  message on misconfiguration rather than the generic tools.cjs "not configured" error, since
  *  these paths aren't mediated by the GM explaining it in narration. */
 async function manualGenerateImage(prompt) {
-  const config = store.loadConfig(userDataDir());
+  const config = loadRuntimeConfig();
   if (!config.comfyUrl) throw new Error('No ComfyUI server URL configured -- set one in Settings first.');
   if (!config.comfyWorkflow) throw new Error('No ComfyUI workflow template configured -- paste one into Settings first.');
   let workflowTemplate;
@@ -129,7 +219,7 @@ function loadCampaign(campaignId) {
   if (fs.existsSync(file)) {
     record = store.loadCampaignRecord(userDataDir(), campaignId).record;
   } else {
-    record = { state: stateMod.newCampaignState(), messages: [], pendingChoice: null };
+    record = { version: 1, revision: 0, state: stateMod.newCampaignState(), messages: [], pendingChoice: null };
   }
   // Backward compatibility: sectors saved before passages existed won't have the field at all.
   // Normalized here, once, at load time -- this is the single most central point every other
@@ -169,6 +259,8 @@ function loadCampaign(campaignId) {
   if (!('pendingChoice' in record)) {
     record.pendingChoice = null;
   }
+  if (!Number.isInteger(record.revision) || record.revision < 0) record.revision = 0;
+  if (!Number.isInteger(record.version)) record.version = 1;
   if (record.state && !record.state.rollLedger) {
     record.state.rollLedger = { order: [], entries: {} };
   }
@@ -220,7 +312,7 @@ function loadCampaign(campaignId) {
 function saveCampaign(campaignId) {
   const record = campaigns.get(campaignId);
   if (!record) return;
-  store.saveCampaignRecord(userDataDir(), campaignId, record);
+  store.saveCampaignRecord(userDataDir(), campaignId, record, { expectedRevision: record.revision || 0 });
 }
 
 function buildAppMenu() {
@@ -232,9 +324,7 @@ function buildAppMenu() {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
+        ...(isDev ? [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }] : []),
         // Explicit accelerators rather than the 'zoomIn'/'zoomOut' roles' defaults: Electron's
         // default zoom-in binding is "CmdOrCtrl+Plus", which only fires by actually producing a
         // "+" character -- meaning Shift+= on a standard keyboard (or numpad +), NOT the
@@ -266,9 +356,19 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      devTools: isDev,
     },
   });
   mainWindow = win;
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (event, url) => {
+    let allowed = false;
+    if (isDev && process.env.VITE_DEV_SERVER_URL) {
+      try { allowed = new URL(url).origin === new URL(process.env.VITE_DEV_SERVER_URL).origin; } catch { allowed = false; }
+    }
+    if (!allowed) event.preventDefault();
+  });
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
   });
@@ -293,6 +393,16 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!isDev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"],
+      },
+    }));
+  }
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
   buildAppMenu();
   createWindow();
   updater.setup({ ipcMain, isDev, getMainWindow: () => mainWindow, app });
@@ -306,10 +416,9 @@ app.on('window-all-closed', () => {
 });
 
 // ---- IPC: config ----
-ipcMain.handle('config:get', () => store.loadConfig(userDataDir()));
+ipcMain.handle('config:get', () => credentials.publicConfig(store, userDataDir(), safeStorage));
 ipcMain.handle('config:set', (_evt, config) => {
-  store.saveConfig(userDataDir(), config);
-  return true;
+  return credentials.savePublicConfig(store, userDataDir(), safeStorage, config);
 });
 // Exposes the built-in narrative-rules text so the Settings UI has a real starting point to
 // show/edit and a real value to reset back to -- not a second, hand-copied version of the same
@@ -463,15 +572,17 @@ ipcMain.handle('campaign:import', async () => {
   if (canceled || filePaths.length === 0) return { canceled: true };
   let parsed;
   try {
-    parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
-  } catch {
+    parsed = readBoundedJsonFile(filePaths[0], 'Campaign import');
+  } catch (error) {
+    if (error.message.includes('20 MB safety limit')) throw error;
     throw new Error('That file isn\'t valid JSON -- it doesn\'t look like a campaign export.');
   }
-  if (!parsed || typeof parsed !== 'object' || !parsed.state || !parsed.state.character) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !parsed.state || !parsed.state.character) {
     throw new Error('That file doesn\'t look like a campaign export (missing character state).');
   }
+  const record = normalizeImportedCampaign(parsed);
+  validation.assertCampaignRecord(record);
   const newId = `campaign-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  const record = { state: parsed.state, messages: Array.isArray(parsed.messages) ? parsed.messages : [], pendingChoice: parsed.pendingChoice || null };
   campaigns.set(newId, record);
   saveCampaign(newId);
   return { canceled: false, campaignId: newId };
@@ -519,13 +630,12 @@ ipcMain.handle('character:import', async () => {
   if (canceled || filePaths.length === 0) return { canceled: true };
   let parsed;
   try {
-    parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'));
-  } catch {
+    parsed = readBoundedJsonFile(filePaths[0], 'Character import');
+  } catch (error) {
+    if (error.message.includes('20 MB safety limit')) throw error;
     throw new Error('That file isn\'t valid JSON -- it doesn\'t look like a character export.');
   }
-  if (!parsed || typeof parsed !== 'object' || !parsed.character || !parsed.character.stats || typeof parsed.character.name !== 'string') {
-    throw new Error('That file doesn\'t look like a character export (missing character data).');
-  }
+  validation.assertCharacterExport(parsed);
   return {
     canceled: false,
     character: parsed.character,
@@ -540,11 +650,13 @@ ipcMain.handle('character:import', async () => {
 // free Starship or anything else campaign:new normally adds -- the imported character is already
 // complete exactly as it was exported, so nothing should be layered on top of it.
 ipcMain.handle('campaign:apply_imported_character', (_evt, { campaignId, character, truths, backgroundVow }) => {
+  validation.assertCharacterExport({ kind: 'starforged-character-export', version: 1, character, truths: truths || {}, backgroundVow: backgroundVow || null });
   campaignId = campaignId || `campaign-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const record = loadCampaign(campaignId);
   const state = record.state;
-  state.character = character;
+  state.character = normalizeImportedCharacter(character);
   state.truths = truths || {};
+  stateMod.applyImpactEffects(state);
   if (backgroundVow && backgroundVow.trim() && !state.progressTracks.some((t) => t.id === 'vow-background')) {
     state.progressTracks.push({ id: 'vow-background', name: backgroundVow.trim(), type: 'vow', rank: 'epic', ticks: 0 });
   }
@@ -569,6 +681,16 @@ ipcMain.handle('campaign:new', (_evt, { campaignId, character, startingAssetIds 
     if (character.stats) {
       stateMod.updateCharacterStats(state, character.stats);
     }
+  }
+
+  if (startingAssetIds.length !== 3 || new Set(startingAssetIds).size !== 3) {
+    throw new Error('Choose exactly three unique starting assets.');
+  }
+  const chosenAssets = startingAssetIds.map((id) => dataMod.findAsset(id));
+  const chosenCategories = chosenAssets.map((asset) => asset && (asset['Asset Type'] || '').split('/').pop());
+  const allowedStartingCategories = new Set(['Path', 'Module', 'Support Vehicle', 'Companion']);
+  if (chosenAssets.some((asset) => !asset) || chosenCategories.some((category) => !allowedStartingCategories.has(category)) || chosenCategories.filter((category) => category === 'Path').length < 2) {
+    throw new Error('Starting assets must be three unique official assets: at least two Paths, plus one Path, Module, Support Vehicle, or Companion.');
   }
 
   // Every Starforged character starts with a Starship (Command Vehicle asset) for free.
@@ -982,7 +1104,7 @@ ipcMain.handle('oracles:roll', (_evt, { oracleId }) => {
 
 // ---- IPC: images (portraits, locations, connections, story illustrations) ----
 ipcMain.handle('comfy:test-connection', async () => {
-  const config = store.loadConfig(userDataDir());
+  const config = loadRuntimeConfig();
   return comfyui.testConnection(config.comfyUrl);
 });
 
@@ -1053,8 +1175,8 @@ ipcMain.handle('images:delete', (_evt, { campaignId = 'default', imageId }) => {
 });
 
 // ---- IPC: chat turn ----
-async function sendChatTurn(evt, { campaignId = 'default', text }) {
-  const config = store.loadConfig(userDataDir());
+async function sendChatTurn(evt, { campaignId = 'default', text }, signal) {
+  const config = loadRuntimeConfig();
   if (!config.apiKey) {
     throw new Error('No OpenRouter API key configured. Set one in Settings first.');
   }
@@ -1097,10 +1219,11 @@ async function sendChatTurn(evt, { campaignId = 'default', text }) {
     model: config.model,
     messages: withSystem,
     campaignState: record.state,
-    imageGen: buildImageGen((imageId) => createdImageIds.push(imageId)),
+    imageGen: buildImageGen((imageId) => createdImageIds.push(imageId), signal),
     temperature: config.temperature,
     topP: config.topP,
     onEvent: sendEvent,
+    signal,
   });
 
   // Store everything after the system message (index 0) back as history;
@@ -1135,13 +1258,13 @@ async function sendChatTurn(evt, { campaignId = 'default', text }) {
   // full tiering scheme). Runs every turn but is a no-op below the threshold, and never throws --
   // a failed summarization call just leaves history untouched for this turn and gets retried
   // next time, rather than blocking the player's turn on a maintenance step.
-  await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state });
+  await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state, signal });
 
   const lastAssistant = [...updated].reverse().find((m) => m.role === 'assistant' && m.content);
   return { reply: lastAssistant ? lastAssistant.content : '', state: record.state, pendingChoice: null };
     });
 
-    store.saveCampaignRecord(userDataDir(), campaignId, transaction.record);
+    store.saveCampaignRecord(userDataDir(), campaignId, transaction.record, { expectedRevision: liveRecord.revision || 0 });
     campaigns.set(campaignId, transaction.record);
     undoCheckpoints.set(campaignId, checkpoint);
     return transaction.value;
@@ -1154,9 +1277,20 @@ async function sendChatTurn(evt, { campaignId = 'default', text }) {
   }
 }
 
-ipcMain.handle('chat:send', (evt, payload) =>
-  serializeCampaignMutation(payload.campaignId || 'default', () => sendChatTurn(evt, payload))
-);
+ipcMain.handle('chat:send', (evt, payload) => serializeCampaignMutation(payload.campaignId || 'default', async () => {
+  const campaignId = payload.campaignId || 'default';
+  const controller = new AbortController();
+  activeChatOperations.set(campaignId, controller);
+  try { return await sendChatTurn(evt, payload, controller.signal); }
+  finally { if (activeChatOperations.get(campaignId) === controller) activeChatOperations.delete(campaignId); }
+}));
+
+ipcMain.handle('chat:cancel', (_evt, { campaignId = 'default' }) => {
+  const controller = activeChatOperations.get(campaignId);
+  if (!controller) return false;
+  controller.abort(new Error('Generation cancelled by the player.'));
+  return true;
+});
 
 // Continues a turn that present_choice paused, now that the player has actually answered --
 // see runTurn's own doc comment in openrouter.cjs for the full design. Appends a real tool-role
@@ -1166,8 +1300,8 @@ ipcMain.handle('chat:send', (evt, payload) =>
 // the conversation valid even if one doesn't), then re-enters the normal turn loop to let the
 // GM continue narrating from here -- which may itself end in another pendingChoice, handled
 // exactly the same way as the first.
-async function resolveChatChoice(evt, { campaignId = 'default', chosenText }) {
-  const config = store.loadConfig(userDataDir());
+async function resolveChatChoice(evt, { campaignId = 'default', chosenText }, signal) {
+  const config = loadRuntimeConfig();
   if (!config.apiKey) {
     throw new Error('No OpenRouter API key configured. Set one in Settings first.');
   }
@@ -1211,10 +1345,11 @@ async function resolveChatChoice(evt, { campaignId = 'default', chosenText }) {
     model: config.model,
     messages: withSystem,
     campaignState: record.state,
-    imageGen: buildImageGen((imageId) => createdImageIds.push(imageId)),
+    imageGen: buildImageGen((imageId) => createdImageIds.push(imageId), signal),
     temperature: config.temperature,
     topP: config.topP,
     onEvent: sendEvent,
+    signal,
   });
 
   const trimmedMessages = updated.slice(1);
@@ -1231,11 +1366,11 @@ async function resolveChatChoice(evt, { campaignId = 'default', chosenText }) {
     return { reply: '', state: record.state, pendingChoice: nextPendingChoice };
   }
 
-  await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state });
+  await summarizer.maybeCompact({ apiKey: config.apiKey, model: config.model, record, campaignState: record.state, signal });
   const lastAssistant = [...updated].reverse().find((m) => m.role === 'assistant' && m.content);
   return { reply: lastAssistant ? lastAssistant.content : '', state: record.state, pendingChoice: null };
     });
-    store.saveCampaignRecord(userDataDir(), campaignId, transaction.record);
+    store.saveCampaignRecord(userDataDir(), campaignId, transaction.record, { expectedRevision: liveRecord.revision || 0 });
     campaigns.set(campaignId, transaction.record);
     return transaction.value;
   } catch (error) {
@@ -1244,9 +1379,13 @@ async function resolveChatChoice(evt, { campaignId = 'default', chosenText }) {
   }
 }
 
-ipcMain.handle('chat:resolve-choice', (evt, payload) =>
-  serializeCampaignMutation(payload.campaignId || 'default', () => resolveChatChoice(evt, payload))
-);
+ipcMain.handle('chat:resolve-choice', (evt, payload) => serializeCampaignMutation(payload.campaignId || 'default', async () => {
+  const campaignId = payload.campaignId || 'default';
+  const controller = new AbortController();
+  activeChatOperations.set(campaignId, controller);
+  try { return await resolveChatChoice(evt, payload, controller.signal); }
+  finally { if (activeChatOperations.get(campaignId) === controller) activeChatOperations.delete(campaignId); }
+}));
 
 // Powers Undo, Regenerate, and Edit in the UI -- all three share this one primitive. Regenerate
 // calls this then immediately re-sends the returned undoneUserText via chat:send unmodified;
@@ -1261,7 +1400,7 @@ ipcMain.handle('chat:resolve-choice', (evt, payload) =>
 // the main GM conversation loop, which would clutter the actual campaign transcript with
 // "please write me an image prompt" exchanges that aren't part of the story.
 ipcMain.handle('image:compose-prompt', async (_evt, { campaignId = 'default', kind, subjectId }) => {
-  const config = store.loadConfig(userDataDir());
+  const config = loadRuntimeConfig();
   if (!config.apiKey) {
     throw new Error('No OpenRouter API key configured. Set one in Settings first.');
   }

@@ -271,7 +271,10 @@ export interface CampaignRecord {
 }
 
 export interface Config {
+  // Write-only: config:get always returns an empty value; the main process exposes only whether
+  // a key exists, never the decrypted secret itself.
   apiKey: string;
+  hasApiKey: boolean;
   model: string;
   comfyUrl: string;
   comfyWorkflow: string;
@@ -317,7 +320,7 @@ export interface CampaignSummary {
 
 export interface GameBridge {
   getConfig: () => Promise<Config>;
-  setConfig: (config: Config) => Promise<boolean>;
+  setConfig: (config: Config) => Promise<Config>;
   getDefaultNarrativeRules: () => Promise<string>;
   listCampaigns: () => Promise<string[]>;
   getCampaignSummaries: () => Promise<CampaignSummary[]>;
@@ -341,6 +344,7 @@ export interface GameBridge {
   rollOracle: (payload: { oracleId: string }) => Promise<OracleRollResult>;
 
   sendMessage: (campaignId: string, text: string) => Promise<{ reply: string; state: CampaignState; pendingChoice: PendingChoice | null }>;
+  cancelMessage: (campaignId: string) => Promise<boolean>;
   undoLastTurn: (campaignId: string) => Promise<{ state: CampaignState; messages: ChatMessage[]; undoneUserText: string }>;
   resolveChoice: (campaignId: string, chosenText: string) => Promise<{ reply: string; state: CampaignState; pendingChoice: PendingChoice | null }>;
   composeImagePrompt: (payload: { campaignId: string; kind: 'portrait' | 'connection' | 'location' | 'illustration'; subjectId?: string }) => Promise<string>;

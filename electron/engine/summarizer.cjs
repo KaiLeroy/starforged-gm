@@ -1,4 +1,5 @@
 'use strict';
+const { fetchWithTimeout, readResponseJson, readResponseText } = require('./network.cjs');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -46,8 +47,8 @@ function extractNarrativeText(messages) {
   return lines.join('\n\n');
 }
 
-async function callSummarizer(apiKey, model, systemPrompt, userContent) {
-  const response = await fetch(OPENROUTER_URL, {
+async function callSummarizer(apiKey, model, systemPrompt, userContent, signal) {
+  const response = await fetchWithTimeout(OPENROUTER_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -60,12 +61,12 @@ async function callSummarizer(apiKey, model, systemPrompt, userContent) {
         { role: 'user', content: userContent },
       ],
     }),
-  });
+  }, { timeoutMs: 60000, signal });
   if (!response.ok) {
-    const text = await response.text().catch(() => '');
+    const text = await readResponseText(response, 64 * 1024).catch(() => '');
     throw new Error(`Summarization call failed (${response.status}): ${text.slice(0, 200)}`);
   }
-  const data = await response.json();
+  const data = await readResponseJson(response, 1024 * 1024);
   const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   if (!content || !content.trim()) {
     throw new Error('Summarization call returned an empty response.');
@@ -75,7 +76,7 @@ async function callSummarizer(apiKey, model, systemPrompt, userContent) {
 
 /** Tier 1: condenses a batch of aging raw messages into a moderate-detail narrative recap,
  *  appended to the existing recent-tier summary (not replacing it -- each batch adds on). */
-async function summarizeBatch(apiKey, model, existingRecentSummary, messagesToSummarize) {
+async function summarizeBatch(apiKey, model, existingRecentSummary, messagesToSummarize, signal) {
   const narrative = extractNarrativeText(messagesToSummarize);
   if (!narrative.trim()) return existingRecentSummary; // nothing narratively meaningful in this batch (pure tool-call turns) -- nothing to add
   const systemPrompt =
@@ -88,12 +89,12 @@ async function summarizeBatch(apiKey, model, existingRecentSummary, messagesToSu
   const userContent = existingRecentSummary
     ? `Earlier recap so far:\n${existingRecentSummary}\n\nNew events to fold in:\n${narrative}\n\nProduce one updated recap covering everything above.`
     : `Events to summarize:\n${narrative}`;
-  return callSummarizer(apiKey, model, systemPrompt, userContent);
+  return callSummarizer(apiKey, model, systemPrompt, userContent, signal);
 }
 
 /** Tier 2: further compresses the recent-tier summary into the distant-tier summary once the
  *  former has grown large enough to be worth compacting again. */
-async function compactToDistant(apiKey, model, existingDistantSummary, recentSummary) {
+async function compactToDistant(apiKey, model, existingDistantSummary, recentSummary, signal) {
   const systemPrompt =
     'You are merging a new chunk of story recap into the long-term "story so far" summary for an ' +
     'ongoing solo tabletop RPG campaign. Compress aggressively -- keep only the events, decisions, ' +
@@ -103,7 +104,7 @@ async function compactToDistant(apiKey, model, existingDistantSummary, recentSum
   const userContent = existingDistantSummary
     ? `Existing long-term summary:\n${existingDistantSummary}\n\nNew material to fold in:\n${recentSummary}\n\nProduce one updated long-term summary covering everything above.`
     : `Material to summarize:\n${recentSummary}`;
-  return callSummarizer(apiKey, model, systemPrompt, userContent);
+  return callSummarizer(apiKey, model, systemPrompt, userContent, signal);
 }
 
 /**
@@ -113,20 +114,20 @@ async function compactToDistant(apiKey, model, existingDistantSummary, recentSum
  * issue, bad key) just leaves the history as-is for this turn rather than blocking play, since
  * this is a maintenance step, not something the player is waiting on.
  */
-async function maybeCompact({ apiKey, model, record, campaignState }) {
+async function maybeCompact({ apiKey, model, record, campaignState, signal }) {
   if (!apiKey) return { compacted: false };
   let compacted = false;
 
   try {
     while (record.messages.length > RECENT_WINDOW_MESSAGES + SUMMARIZE_BATCH_SIZE) {
       const batch = record.messages.slice(0, SUMMARIZE_BATCH_SIZE);
-      campaignState.storySummary.recent = await summarizeBatch(apiKey, model, campaignState.storySummary.recent, batch);
+      campaignState.storySummary.recent = await summarizeBatch(apiKey, model, campaignState.storySummary.recent, batch, signal);
       record.messages = record.messages.slice(SUMMARIZE_BATCH_SIZE);
       compacted = true;
     }
 
     if (campaignState.storySummary.recent.length > DISTANT_COMPACT_THRESHOLD) {
-      campaignState.storySummary.distant = await compactToDistant(apiKey, model, campaignState.storySummary.distant, campaignState.storySummary.recent);
+      campaignState.storySummary.distant = await compactToDistant(apiKey, model, campaignState.storySummary.distant, campaignState.storySummary.recent, signal);
       campaignState.storySummary.recent = '';
       compacted = true;
     }

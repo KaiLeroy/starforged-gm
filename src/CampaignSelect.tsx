@@ -102,7 +102,7 @@ export function CampaignSelect({ onChoose, config, onSaveConfig }: { onChoose: (
       {showSettings && <SettingsModal config={config} onSave={(c) => { onSaveConfig(c); setShowSettings(false); }} onClose={() => setShowSettings(false)} />}
       <div style={{ gridArea: 'main', display: 'flex', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}>
         <div style={{ width: 560 }}>
-          {!config.apiKey && (
+          {!config.hasApiKey && (
             <div className="track-card" style={{ padding: '10px 14px', marginBottom: 16, borderLeft: '3px solid var(--accent-copper)' }}>
               <strong style={{ color: 'var(--accent-copper)' }}>No OpenRouter API key configured yet.</strong>
               <span style={{ color: 'var(--text-dim)' }}> The GM can't respond until one's set. </span>
@@ -205,4 +205,3 @@ export function CampaignSelect({ onChoose, config, onSaveConfig }: { onChoose: (
     </div>
   );
 }
-
