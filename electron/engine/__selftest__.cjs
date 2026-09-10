@@ -29,6 +29,14 @@ async function check(label, fn) {
   }
 }
 
+function entitlementFor(campaignState, rollId, modifier, sourceName = null) {
+  const entitlement = state.listRollModifierEntitlements(campaignState, rollId).find((entry) =>
+    entry.modifier === modifier && (!sourceName || entry.source_name === sourceName)
+  );
+  assert.ok(entitlement, `expected ${modifier} entitlement${sourceName ? ` from ${sourceName}` : ''}`);
+  return entitlement.entitlement_id;
+}
+
 (async () => {
 console.log('Dataforged data layer');
 await check('loads all five datasets', async () => {
@@ -1676,10 +1684,13 @@ await check("Snub Fighter's victory tally is correctly distinguished from an ord
 
 console.log('Remaining Module findings from the 1-by-1 audit: conditional action-die rerolls, automated scans, roll-twice-choose-either, automatic hits');
 await check('reroll_action_die stays within 1-6 across many rolls', async () => {
-  const cs = state.newCampaignState();
-  const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 1, adds: 0, momentum: 2, actionScore: 3, challengeDice: [4, 8], outcome: 'miss', isMatch: false });
   for (let i = 0; i < 300; i++) {
-    const r = await executeTool('reroll_action_die', { roll_id: rollId }, cs);
+    const cs = state.newCampaignState();
+    const vestige = state.addAsset(cs, { id: `vestige-${i}`, name: 'Vestige', category: 'Path' });
+    state.unlockAssetAbility(cs, vestige.id, 3);
+    const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 1, adds: 0, momentum: 2, actionScore: 3, challengeDice: [4, 8], outcome: 'miss', isMatch: false });
+    const entitlementId = entitlementFor(cs, rollId, 'reroll_action_die', 'Vestige');
+    const r = await executeTool('reroll_action_die', { roll_id: rollId, entitlement_id: entitlementId }, cs);
     assert.ok(r.die >= 1 && r.die <= 6);
   }
 });
@@ -1690,12 +1701,15 @@ await check('reroll_action_die still supports explicit standalone d6 checks with
 });
 await check('reroll_action_die only accepts the Looper reroll add when ability 3 is actually unlocked', async () => {
   const cs = state.newCampaignState();
+  const vestige = state.addAsset(cs, { id: 've1', name: 'Vestige', category: 'Path' });
+  state.unlockAssetAbility(cs, vestige.id, 3);
   const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, momentum: 2, actionScore: 5, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
-  const rejected = await executeTool('reroll_action_die', { roll_id: rollId, extra_add: 1 }, cs);
+  const entitlementId = entitlementFor(cs, rollId, 'reroll_action_die', 'Vestige');
+  const rejected = await executeTool('reroll_action_die', { roll_id: rollId, entitlement_id: entitlementId, extra_add: 1 }, cs);
   assert.ok(rejected.error && rejected.error.includes('Looper'));
   const looper = state.addAsset(cs, { id: 'lo1', name: 'Looper', category: 'Path' });
   state.unlockAssetAbility(cs, looper.id, 3);
-  const accepted = await executeTool('reroll_action_die', { roll_id: rollId, extra_add: 1 }, cs);
+  const accepted = await executeTool('reroll_action_die', { roll_id: rollId, entitlement_id: entitlementId, extra_add: 1 }, cs);
   assert.ok(!accepted.error);
 });
 await check('the module-special guidance block is absent by default and correctly scoped to only the modules actually owned', () => {
@@ -1881,10 +1895,16 @@ console.log("Dice-modifying assets (Sleuth's \"roll three, choose two\" and simi
 await check('roll_extra_challenge_die and reroll_challenge_dice stay within 1-10 across many rolls', async () => {
   for (let i = 0; i < 300; i++) {
     const cs = state.newCampaignState();
-    const rollId = state.recordRoll(cs, { kind: 'action', actionScore: 5, challengeDice: [3, 9], outcome: 'weak_hit', isMatch: false });
-    const r1 = await executeTool('roll_extra_challenge_die', { roll_id: rollId }, cs);
+    const bannersworn = state.addAsset(cs, { id: `bannersworn-${i}`, name: 'Bannersworn', category: 'Path' });
+    state.unlockAssetAbility(cs, bannersworn.id, 3);
+    const loreHunter = state.addAsset(cs, { id: `lore-hunter-${i}`, name: 'Lore Hunter', category: 'Path' });
+    state.unlockAssetAbility(cs, loreHunter.id, 2);
+    const rollId = state.recordRoll(cs, { kind: 'progress', actionScore: 5, progressScore: 5, challengeDice: [3, 9], outcome: 'weak_hit', isMatch: false });
+    const extraEntitlement = entitlementFor(cs, rollId, 'roll_extra_challenge_die', 'Bannersworn');
+    const rerollEntitlement = entitlementFor(cs, rollId, 'reroll_challenge_dice', 'Lore Hunter');
+    const r1 = await executeTool('roll_extra_challenge_die', { roll_id: rollId, entitlement_id: extraEntitlement }, cs);
     assert.ok(r1.die >= 1 && r1.die <= 10);
-    const r2 = await executeTool('reroll_challenge_dice', { roll_id: rollId }, cs);
+    const r2 = await executeTool('reroll_challenge_dice', { roll_id: rollId, entitlement_id: rerollEntitlement }, cs);
     assert.strictEqual(r2.challenge_dice.length, 2);
     for (const d of r2.challenge_dice) assert.ok(d >= 1 && d <= 10);
   }
@@ -1924,14 +1944,142 @@ await check('Revenant die-zeroing verifies the exact move, owned ability, moment
   const revenant = state.addAsset(cs, { id: 'rev1', name: 'Revenant', category: 'Deed' });
   state.unlockAssetAbility(cs, revenant.id, 2);
   const rollId = state.recordRoll(cs, { kind: 'progress', moveName: 'Take Decisive Action', progressScore: 6, challengeDice: [7, 9], outcome: 'miss', isMatch: false });
-  const forged = await executeTool('resolve_action_with_dice', { roll_id: rollId, dice_mode: 'revenant_zero', source_id: 'wrong', challenge_dice: [0, 9] }, cs);
+  const entitlementId = entitlementFor(cs, rollId, 'revenant_zero', 'Revenant');
+  const forged = await executeTool('resolve_action_with_dice', { roll_id: rollId, entitlement_id: entitlementId, dice_mode: 'revenant_zero', source_id: 'wrong', challenge_dice: [0, 9] }, cs);
   assert.ok(forged.error);
   assert.strictEqual(cs.character.meters.momentum, 8, 'a rejected transformation must not spend momentum');
-  const resolved = await executeTool('resolve_action_with_dice', { roll_id: rollId, dice_mode: 'revenant_zero', source_id: revenant.id, challenge_dice: [0, 9] }, cs);
+  const resolved = await executeTool('resolve_action_with_dice', { roll_id: rollId, entitlement_id: entitlementId, dice_mode: 'revenant_zero', source_id: revenant.id, challenge_dice: [0, 9] }, cs);
   assert.strictEqual(resolved.momentum_burn.burned, 8);
   assert.strictEqual(cs.character.meters.momentum, cs.character.meters.momentum_reset);
-  const repeated = await executeTool('resolve_action_with_dice', { roll_id: rollId, dice_mode: 'revenant_zero', source_id: revenant.id, challenge_dice: [0, 9] }, cs);
-  assert.ok(repeated.error && repeated.error.includes('already burned'));
+  const repeated = await executeTool('resolve_action_with_dice', { roll_id: rollId, entitlement_id: entitlementId, dice_mode: 'revenant_zero', source_id: revenant.id, challenge_dice: [0, 9] }, cs);
+  assert.ok(repeated.error && repeated.error.includes('already resolved'));
+});
+await check('roll results issue opaque modifier entitlements only for the exact owned, unlocked ability and matching move', async () => {
+  const cs = state.newCampaignState();
+  state.addAsset(cs, { id: 'sleuth-owned', name: 'Sleuth', category: 'Path' });
+  state.addAsset(cs, { id: 'cohort-locked', name: 'Cohort', category: 'Path' });
+  const gather = await executeTool('roll_action_move', { move_name: 'Gather Information', stat: 'wits' }, cs);
+  const sleuth = gather.modifier_entitlements.find((entry) => entry.source_id === 'sleuth-owned');
+  assert.ok(sleuth.entitlement_id.startsWith('entitlement-'));
+  assert.strictEqual(sleuth.ability_number, 1);
+  assert.strictEqual(sleuth.modifier, 'roll_bonus_challenge_dice');
+  assert.ok(!gather.modifier_entitlements.some((entry) => entry.source_id === 'cohort-locked'), 'locked Cohort ability 3 must issue nothing');
+
+  const unrelated = await executeTool('roll_action_move', { move_name: 'Face Danger', stat: 'edge' }, cs);
+  assert.ok(!unrelated.modifier_entitlements.some((entry) => entry.source_id === 'sleuth-owned'), 'Sleuth entitlement must be bound to Gather Information');
+});
+await check('every reroll and bonus-die entitlement is one-time, with duplicate errors leaving state identical', async () => {
+  const cases = [];
+
+  const actionState = state.newCampaignState();
+  const vestige = state.addAsset(actionState, { id: 'vestige-once', name: 'Vestige', category: 'Path' });
+  state.unlockAssetAbility(actionState, vestige.id, 3);
+  const actionRoll = state.recordRoll(actionState, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, momentum: 2, actionScore: 5, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
+  cases.push({
+    state: actionState,
+    tool: 'reroll_action_die',
+    args: { roll_id: actionRoll, entitlement_id: entitlementFor(actionState, actionRoll, 'reroll_action_die', 'Vestige') },
+  });
+
+  const extraState = state.newCampaignState();
+  const bannersworn = state.addAsset(extraState, { id: 'bannersworn-once', name: 'Bannersworn', category: 'Path' });
+  state.unlockAssetAbility(extraState, bannersworn.id, 3);
+  const extraRoll = state.recordRoll(extraState, { kind: 'progress', moveName: 'Fulfill Your Vow', progressScore: 6, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
+  cases.push({
+    state: extraState,
+    tool: 'roll_extra_challenge_die',
+    args: { roll_id: extraRoll, entitlement_id: entitlementFor(extraState, extraRoll, 'roll_extra_challenge_die', 'Bannersworn') },
+  });
+
+  const challengeState = state.newCampaignState();
+  const loreHunter = state.addAsset(challengeState, { id: 'lore-once', name: 'Lore Hunter', category: 'Path' });
+  state.unlockAssetAbility(challengeState, loreHunter.id, 2);
+  const challengeRoll = state.recordRoll(challengeState, { kind: 'action', moveName: 'Gather Information', actionScore: 5, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
+  cases.push({
+    state: challengeState,
+    tool: 'reroll_challenge_dice',
+    args: { roll_id: challengeRoll, entitlement_id: entitlementFor(challengeState, challengeRoll, 'reroll_challenge_dice', 'Lore Hunter') },
+  });
+
+  const bonusState = state.newCampaignState();
+  state.addAsset(bonusState, { id: 'sleuth-once', name: 'Sleuth', category: 'Path' });
+  const bonusRoll = state.recordRoll(bonusState, { kind: 'action', moveName: 'Gather Information', actionScore: 5, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
+  cases.push({
+    state: bonusState,
+    tool: 'roll_bonus_challenge_dice',
+    args: { roll_id: bonusRoll, entitlement_id: entitlementFor(bonusState, bonusRoll, 'roll_bonus_challenge_dice', 'Sleuth'), extra_die_count: 1 },
+  });
+
+  for (const testCase of cases) {
+    const first = await executeTool(testCase.tool, testCase.args, testCase.state);
+    assert.ok(!first.error, `${testCase.tool} first use failed: ${first.error}`);
+    const beforeDuplicate = JSON.stringify(testCase.state);
+    const duplicate = await executeTool(testCase.tool, testCase.args, testCase.state);
+    assert.ok(duplicate.error && /already (used|resolved)/.test(duplicate.error), `${testCase.tool} accepted duplicate use`);
+    assert.strictEqual(JSON.stringify(testCase.state), beforeDuplicate, `${testCase.tool} duplicate error changed state`);
+  }
+});
+await check('modifier entitlements reject cross-roll, wrong-operation, and removed-source substitution without being consumed', async () => {
+  const cs = state.newCampaignState();
+  const vestige = state.addAsset(cs, { id: 'vestige-bound', name: 'Vestige', category: 'Path' });
+  state.unlockAssetAbility(cs, vestige.id, 3);
+  const firstRoll = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, momentum: 2, actionScore: 5, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
+  const secondRoll = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, momentum: 2, actionScore: 5, challengeDice: [3, 9], outcome: 'weak_hit', isMatch: false });
+  const entitlementId = entitlementFor(cs, firstRoll, 'reroll_action_die', 'Vestige');
+
+  const beforeCrossRoll = JSON.stringify(cs);
+  const crossRoll = await executeTool('reroll_action_die', { roll_id: secondRoll, entitlement_id: entitlementId }, cs);
+  assert.ok(crossRoll.error && crossRoll.error.includes('Unknown modifier entitlement'));
+  assert.strictEqual(JSON.stringify(cs), beforeCrossRoll);
+
+  const wrongOperation = await executeTool('reroll_challenge_dice', { roll_id: firstRoll, entitlement_id: entitlementId }, cs);
+  assert.ok(wrongOperation.error && wrongOperation.error.includes('not reroll_challenge_dice'));
+  assert.strictEqual(state.listRollModifierEntitlements(cs, firstRoll).find((entry) => entry.entitlement_id === entitlementId).used, false);
+
+  cs.character.assets = cs.character.assets.filter((asset) => asset.id !== vestige.id);
+  const beforeRemoved = JSON.stringify(cs);
+  const removed = await executeTool('reroll_action_die', { roll_id: firstRoll, entitlement_id: entitlementId }, cs);
+  assert.ok(removed.error && removed.error.includes('no longer has its exact owned, unlocked source ability'));
+  assert.strictEqual(JSON.stringify(cs), beforeRemoved);
+});
+await check('final roll resolution is terminal and blocks both duplicate resolution and later modifiers', async () => {
+  const cs = state.newCampaignState();
+  const vestige = state.addAsset(cs, { id: 'vestige-terminal', name: 'Vestige', category: 'Path' });
+  state.unlockAssetAbility(cs, vestige.id, 3);
+  const rollId = state.recordRoll(cs, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, momentum: 2, actionScore: 5, challengeDice: [4, 8], outcome: 'weak_hit', isMatch: false });
+  const entitlementId = entitlementFor(cs, rollId, 'reroll_action_die', 'Vestige');
+  const resolved = await executeTool('resolve_action_with_dice', { roll_id: rollId, challenge_dice: [4, 8] }, cs);
+  assert.ok(!resolved.error);
+  assert.strictEqual(state.getRoll(cs, rollId).resolutionStatus, 'resolved');
+
+  const beforeDuplicate = JSON.stringify(cs);
+  const duplicate = await executeTool('resolve_action_with_dice', { roll_id: rollId, challenge_dice: [4, 8] }, cs);
+  assert.ok(duplicate.error && duplicate.error.includes('already resolved'));
+  assert.strictEqual(JSON.stringify(cs), beforeDuplicate);
+  const lateReroll = await executeTool('reroll_action_die', { roll_id: rollId, entitlement_id: entitlementId }, cs);
+  assert.ok(lateReroll.error && lateReroll.error.includes('already resolved'));
+  assert.strictEqual(JSON.stringify(cs), beforeDuplicate);
+});
+await check('Kinetic and Exosuit post-roll transformations require their exact one-time source entitlements', async () => {
+  const kineticState = state.newCampaignState();
+  const kinetic = state.addAsset(kineticState, { id: 'kinetic-exact', name: 'Kinetic', category: 'Path' });
+  state.unlockAssetAbility(kineticState, kinetic.id, 2);
+  const kineticRoll = state.recordRoll(kineticState, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, actionScore: 4, challengeDice: [5, 9], outcome: 'miss', isMatch: false });
+  const kineticEntitlement = entitlementFor(kineticState, kineticRoll, 'kinetic_plus_2', 'Kinetic');
+  const beforeWrongSource = JSON.stringify(kineticState);
+  const wrongSource = await executeTool('resolve_action_with_dice', { roll_id: kineticRoll, challenge_dice: [5, 9], score_mode: 'kinetic_plus_2', source_id: 'forged', entitlement_id: kineticEntitlement }, kineticState);
+  assert.ok(wrongSource.error && wrongSource.error.includes('belongs to source_id'));
+  assert.strictEqual(JSON.stringify(kineticState), beforeWrongSource);
+  const kineticResult = await executeTool('resolve_action_with_dice', { roll_id: kineticRoll, challenge_dice: [5, 9], score_mode: 'kinetic_plus_2', source_id: kinetic.id, entitlement_id: kineticEntitlement }, kineticState);
+  assert.strictEqual(kineticResult.action_score, 6);
+
+  const exosuitState = state.newCampaignState();
+  const exosuit = state.addAsset(exosuitState, { id: 'exosuit-exact', name: 'Exosuit', category: 'Support Vehicle' });
+  const exosuitRoll = state.recordRoll(exosuitState, { kind: 'action', moveName: 'Face Danger', statValue: 2, adds: 0, actionScore: 4, challengeDice: [5, 9], outcome: 'miss', isMatch: false });
+  const exosuitEntitlement = entitlementFor(exosuitState, exosuitRoll, 'exosuit_integrity_die', 'Exosuit');
+  const exosuitResult = await executeTool('resolve_action_with_dice', { roll_id: exosuitRoll, challenge_dice: [5, 9], score_mode: 'exosuit_integrity_die', source_id: exosuit.id, entitlement_id: exosuitEntitlement }, exosuitState);
+  assert.strictEqual(exosuitResult.action_score, 7);
+  assert.strictEqual(state.getRoll(exosuitState, exosuitRoll).resolutionStatus, 'resolved');
 });
 await check('the persisted roll ledger is bounded and expires the oldest roll ids', () => {
   const cs = state.newCampaignState();
@@ -4467,11 +4615,14 @@ await check("rollBonusChallengeDice correctly forces the matching pair (and skip
 });
 await check("roll_bonus_challenge_dice works correctly as a real tool call, generalizes to Cohort's variable specialist count (not just Sleuth's fixed one extra die), and both assets' own guidance now points at this single consolidated tool instead of the old multi-step orchestration a real model was observed skipping entirely", async () => {
   const rollState = state.newCampaignState();
-  const rollId = state.recordRoll(rollState, { kind: 'action', actionScore: 5, challengeDice: [10, 2], outcome: 'weak_hit', isMatch: false });
-  const r = await executeTool('roll_bonus_challenge_dice', { roll_id: rollId, extra_die_count: 3 }, rollState);
+  const cohort = state.addAsset(rollState, { id: 'cohort1', name: 'Cohort', category: 'Path' });
+  state.unlockAssetAbility(rollState, cohort.id, 3);
+  const rollId = state.recordRoll(rollState, { kind: 'action', moveName: 'Secure an Advantage', actionScore: 5, challengeDice: [10, 2], outcome: 'weak_hit', isMatch: false });
+  const entitlementId = entitlementFor(rollState, rollId, 'roll_bonus_challenge_dice', 'Cohort');
+  const r = await executeTool('roll_bonus_challenge_dice', { roll_id: rollId, entitlement_id: entitlementId, extra_die_count: 3 }, rollState);
   assert.strictEqual(r.extra_dice.length, 3, 'extra_die_count should control how many bonus dice roll, covering Cohort\'s variable-specialist case');
   assert.strictEqual(r.all_dice.length, 5);
-  const bad = await executeTool('roll_bonus_challenge_dice', { roll_id: 'missing' }, state.newCampaignState());
+  const bad = await executeTool('roll_bonus_challenge_dice', { roll_id: 'missing', entitlement_id: 'missing' }, state.newCampaignState());
   assert.ok(bad.error, 'malformed original_challenge_dice should be rejected cleanly, not crash');
   const { buildSystemPrompt } = require('./systemPrompt.cjs');
   const cs = state.newCampaignState();

@@ -464,6 +464,51 @@ function burnMomentum(state) {
 
 const MAX_ROLL_LEDGER_ENTRIES = 50;
 
+// Hand-verified roll modifiers. These are deliberately structured here instead of inferred from
+// freeform asset prose at runtime: each entitlement names one exact owned/unlocked ability and
+// one operation it is allowed to perform. Fictional trigger judgment remains with the GM, while
+// provenance, ownership, unlock state, roll binding, and one-time use are engine-enforced.
+const ROLL_MODIFIER_ABILITIES = [
+  // Conditional action-die rerolls.
+  { asset: 'Artist', ability: 1, modifier: 'reroll_action_die', rollKinds: ['action'] },
+  { asset: 'Banshee', ability: 3, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Enter the Fray', 'Gain Ground', 'React Under Fire', 'Strike', 'Clash', 'Battle'] },
+  { asset: 'Fleet Commander', ability: 3, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Undertake an Expedition'] },
+  { asset: 'Glowcat', ability: 2, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Compel'] },
+  { asset: 'Homesteader', ability: 3, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Set a Course'] },
+  { asset: 'Medbay', ability: 1, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Heal'] },
+  { asset: 'Protocol Bot', ability: 3, modifier: 'reroll_action_die', rollKinds: ['action'] },
+  { asset: 'Revenant', ability: 1, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Endure Harm', 'Face Death'] },
+  { asset: 'Rockhorn', ability: 3, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Endure Harm', 'Endure Stress'] },
+  { asset: 'Sidekick', ability: 1, modifier: 'reroll_action_die', rollKinds: ['action'] },
+  { asset: 'Stealth Tech', ability: 2, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Undertake an Expedition'] },
+  { asset: 'Trader', ability: 2, modifier: 'reroll_action_die', rollKinds: ['action'], moves: ['Resupply'] },
+  { asset: 'Vestige', ability: 3, modifier: 'reroll_action_die', rollKinds: ['action'] },
+  { asset: 'Workshop', ability: 2, modifier: 'reroll_action_die', rollKinds: ['action'] },
+
+  // Replace one challenge die by rolling one fresh die.
+  { asset: 'Bannersworn', ability: 3, modifier: 'roll_extra_challenge_die', rollKinds: ['progress'] },
+  { asset: 'Bounty Hunter', ability: 3, modifier: 'roll_extra_challenge_die', rollKinds: ['progress'], moves: ['Take Decisive Action'] },
+  { asset: 'Exosuit', ability: 3, modifier: 'roll_extra_challenge_die', moves: ['Withstand Damage'] },
+  { asset: 'Fated', ability: 3, modifier: 'roll_extra_challenge_die', rollKinds: ['progress'] },
+  { asset: 'Grappler', ability: 3, modifier: 'roll_extra_challenge_die', rollKinds: ['progress'], moves: ['Take Decisive Action'] },
+  { asset: 'Gunner', ability: 2, modifier: 'roll_extra_challenge_die', rollKinds: ['progress'], moves: ['Take Decisive Action'] },
+  { asset: 'Rover', ability: 1, modifier: 'roll_extra_challenge_die', rollKinds: ['progress'], moves: ['Finish an Expedition'] },
+  { asset: 'Sensor Array', ability: 1, modifier: 'roll_extra_challenge_die', rollKinds: ['action'], moves: ['Undertake an Expedition'] },
+  { asset: 'Weapon Master', ability: 2, modifier: 'roll_extra_challenge_die', rollKinds: ['progress'], moves: ['Take Decisive Action'] },
+
+  // Multi-die bonus pools and full challenge-pair rerolls.
+  { asset: 'Sleuth', ability: 1, modifier: 'roll_bonus_challenge_dice', rollKinds: ['action'], moves: ['Gather Information'], maxExtraDice: 1 },
+  { asset: 'Cohort', ability: 3, modifier: 'roll_bonus_challenge_dice', rollKinds: ['action'], moves: ['Secure an Advantage'], maxExtraDice: 10 },
+  { asset: 'Demolitionist', ability: 3, modifier: 'reroll_challenge_dice', rollKinds: ['progress'], moves: ['Take Decisive Action'] },
+  { asset: 'Lore Hunter', ability: 2, modifier: 'reroll_challenge_dice' },
+  { asset: 'Missile Array', ability: 3, modifier: 'reroll_challenge_dice', rollKinds: ['progress'], moves: ['Take Decisive Action'] },
+
+  // Post-roll score/die transformations finalized by resolve_action_with_dice.
+  { asset: 'Kinetic', ability: 2, modifier: 'kinetic_plus_2', rollKinds: ['action'] },
+  { asset: 'Exosuit', ability: 1, modifier: 'exosuit_integrity_die', rollKinds: ['action'] },
+  { asset: 'Revenant', ability: 2, modifier: 'revenant_zero', rollKinds: ['progress'], moves: ['Take Decisive Action'] },
+];
+
 function ensureRollLedger(state) {
   if (!state.rollLedger || !Array.isArray(state.rollLedger.order) || !state.rollLedger.entries) {
     state.rollLedger = { order: [], entries: {} };
@@ -486,12 +531,15 @@ function recordRoll(state, details) {
     authorizedChallengeDice: [details.challengeDice],
     appliedAssetEffects: {},
     momentumBurned: false,
+    resolutionStatus: 'open',
+    modifierEntitlements: {},
     currentActionScore: score,
     currentChallengeDice: details.challengeDice,
     currentOutcome: details.outcome,
     currentIsMatch: details.isMatch,
   };
   ledger.order.push(id);
+  issueRollModifierEntitlements(state, id);
   while (ledger.order.length > MAX_ROLL_LEDGER_ENTRIES) {
     delete ledger.entries[ledger.order.shift()];
   }
@@ -501,6 +549,81 @@ function recordRoll(state, details) {
 function getRoll(state, rollId) {
   const roll = ensureRollLedger(state).entries[rollId];
   if (!roll) throw new Error(`Unknown or expired roll_id "${rollId}".`);
+  // Backward-compatible normalization for campaigns saved before roll lifecycle enforcement.
+  if (!roll.resolutionStatus) roll.resolutionStatus = 'open';
+  if (!roll.modifierEntitlements || typeof roll.modifierEntitlements !== 'object') roll.modifierEntitlements = {};
+  return roll;
+}
+
+function issueRollModifierEntitlements(state, rollId) {
+  const roll = getRoll(state, rollId);
+  for (const rule of ROLL_MODIFIER_ABILITIES) {
+    if (rule.rollKinds && !rule.rollKinds.includes(roll.kind)) continue;
+    if (rule.moves && !rule.moves.includes(roll.moveName)) continue;
+    for (const asset of state.character.assets || []) {
+      if (asset.name !== rule.asset || !(asset.abilities_unlocked || []).includes(rule.ability)) continue;
+      const alreadyIssued = Object.values(roll.modifierEntitlements).some((entry) =>
+        entry.sourceId === asset.id && entry.abilityNumber === rule.ability && entry.modifier === rule.modifier
+      );
+      if (alreadyIssued) continue;
+      const id = `entitlement-${crypto.randomUUID()}`;
+      roll.modifierEntitlements[id] = {
+        id,
+        rollId,
+        sourceId: asset.id,
+        sourceName: asset.name,
+        abilityNumber: rule.ability,
+        modifier: rule.modifier,
+        maxExtraDice: rule.maxExtraDice || null,
+        used: false,
+      };
+    }
+  }
+  return listRollModifierEntitlements(state, rollId);
+}
+
+function listRollModifierEntitlements(state, rollId) {
+  const roll = getRoll(state, rollId);
+  return Object.values(roll.modifierEntitlements).map((entry) => ({
+    entitlement_id: entry.id,
+    source_id: entry.sourceId,
+    source_name: entry.sourceName,
+    ability_number: entry.abilityNumber,
+    modifier: entry.modifier,
+    max_extra_dice: entry.maxExtraDice,
+    used: entry.used,
+  }));
+}
+
+function requireOpenRoll(state, rollId) {
+  const roll = getRoll(state, rollId);
+  if (roll.resolutionStatus === 'resolved') throw new Error(`roll_id "${rollId}" is already resolved.`);
+  return roll;
+}
+
+function consumeRollModifierEntitlement(state, rollId, entitlementId, expectedModifier, expectedSourceId = null) {
+  const roll = requireOpenRoll(state, rollId);
+  if (!entitlementId) throw new Error(`${expectedModifier} requires an engine-issued entitlement_id from the original roll result.`);
+  const entitlement = roll.modifierEntitlements[entitlementId];
+  if (!entitlement) throw new Error(`Unknown modifier entitlement_id "${entitlementId}" for roll_id "${rollId}".`);
+  if (entitlement.modifier !== expectedModifier) {
+    throw new Error(`Modifier entitlement "${entitlementId}" authorizes ${entitlement.modifier}, not ${expectedModifier}.`);
+  }
+  if (expectedSourceId && entitlement.sourceId !== expectedSourceId) {
+    throw new Error(`Modifier entitlement "${entitlementId}" belongs to source_id "${entitlement.sourceId}", not "${expectedSourceId}".`);
+  }
+  if (entitlement.used) throw new Error(`Modifier entitlement "${entitlementId}" was already used.`);
+  const asset = state.character.assets.find((candidate) => candidate.id === entitlement.sourceId);
+  if (!asset || asset.name !== entitlement.sourceName || !(asset.abilities_unlocked || []).includes(entitlement.abilityNumber)) {
+    throw new Error(`Modifier entitlement "${entitlementId}" no longer has its exact owned, unlocked source ability.`);
+  }
+  entitlement.used = true;
+  return entitlement;
+}
+
+function markRollResolved(state, rollId) {
+  const roll = requireOpenRoll(state, rollId);
+  roll.resolutionStatus = 'resolved';
   return roll;
 }
 
@@ -1537,6 +1660,10 @@ module.exports = {
   burnMomentum,
   recordRoll,
   getRoll,
+  listRollModifierEntitlements,
+  consumeRollModifierEntitlement,
+  requireOpenRoll,
+  markRollResolved,
   authorizeActionScore,
   authorizeChallengeDice,
   isAuthorizedActionScore,

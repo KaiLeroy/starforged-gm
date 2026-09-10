@@ -380,9 +380,10 @@ const TOOL_SCHEMAS = [
         'move. For assets that grant a conditional action-die reroll (Medbay, Workshop, Fleet Commander all grant ' +
         '"reroll your action die if its value is less than [some value]"): after the normal roll, check that ' +
         "condition yourself first (this tool doesn't check it), then if it's met and the player wants to, call " +
-        'this with that roll_id; the engine recomputes and records the outcome against the unchanged challenge dice. ' +
+        'this with that roll_id and its matching engine-issued entitlement_id; the engine recomputes and records ' +
+        'the outcome against the unchanged challenge dice. ' +
         'Omit roll_id only when an asset explicitly calls for a standalone d6 check rather than modifying a move.',
-      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose action die is being rerolled. Omit only for a genuine standalone d6 check.' }, extra_add: { type: 'integer', enum: [0, 1], description: 'Optional verified ability add applied to the rerolled action die; only 0 or 1.' } } },
+      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose action die is being rerolled. Omit only for a genuine standalone d6 check.' }, entitlement_id: { type: 'string', description: 'Required with roll_id: the matching unused reroll_action_die entitlement from that roll result.' }, extra_add: { type: 'integer', enum: [0, 1], description: 'Optional verified ability add applied to the rerolled action die; only 0 or 1.' } } },
     },
   },
   {
@@ -396,7 +397,7 @@ const TOOL_SCHEMAS = [
         'rolling, use resolve_action_with_dice to recompute the outcome with whichever two dice actually apply. ' +
         'roll_bonus_challenge_dice below does this whole sequence -- including every pairing\'s real outcome -- ' +
         'in one call; prefer that one for Sleuth/Cohort specifically rather than orchestrating this by hand.',
-      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose challenge pool receives this die.' } }, required: ['roll_id'] },
+      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose challenge pool receives this die.' }, entitlement_id: { type: 'string', description: 'Matching unused roll_extra_challenge_die entitlement from that roll result.' } }, required: ['roll_id', 'entitlement_id'] },
     },
   },
   {
@@ -417,9 +418,10 @@ const TOOL_SCHEMAS = [
         type: 'object',
         properties: {
           roll_id: { type: 'string', description: 'Exact roll_id returned by the original action/progress roll; score and original dice are read from the ledger.' },
-          extra_die_count: { type: 'integer', description: 'How many bonus dice to roll -- 1 for Sleuth, or the number of participating specialists for Cohort. Defaults to 1 if omitted.' },
+          entitlement_id: { type: 'string', description: 'Matching unused roll_bonus_challenge_dice entitlement from that roll result.' },
+          extra_die_count: { type: 'integer', minimum: 1, maximum: 10, description: 'How many bonus dice to roll -- exactly 1 for Sleuth, or 1-10 participating specialists for Cohort. Defaults to 1 if omitted.' },
         },
-        required: ['roll_id'],
+        required: ['roll_id', 'entitlement_id'],
       },
     },
   },
@@ -432,7 +434,7 @@ const TOOL_SCHEMAS = [
         'grant "reroll any challenge dice" under specific conditions -- Missile Array, Demolitionist, Lore Hunter. ' +
         'After rerolling, use resolve_action_with_dice with the same action score and these new dice to get the ' +
         "real outcome -- don't work it out yourself.",
-      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose challenge dice are being rerolled.' } }, required: ['roll_id'] },
+      parameters: { type: 'object', properties: { roll_id: { type: 'string', description: 'Exact roll_id whose challenge dice are being rerolled.' }, entitlement_id: { type: 'string', description: 'Matching unused reroll_challenge_dice entitlement from that roll result.' } }, required: ['roll_id', 'entitlement_id'] },
     },
   },
   {
@@ -453,6 +455,7 @@ const TOOL_SCHEMAS = [
           score_mode: { type: 'string', enum: ['current', 'kinetic_plus_2', 'exosuit_integrity_die'], description: 'Optional engine-verified post-roll score transformation for the named owned asset ability.' },
           dice_mode: { type: 'string', enum: ['current', 'revenant_zero'], description: 'Optional engine-verified challenge-die transformation. revenant_zero requires the owned unlocked Revenant and its exact source_id.' },
           source_id: { type: 'string', description: 'Exact owned asset id required by a non-current score_mode or dice_mode.' },
+          entitlement_id: { type: 'string', description: 'Required by a non-current score_mode or dice_mode: its matching unused engine-issued entitlement.' },
           challenge_dice: {
             type: 'array',
             items: { type: 'integer' },
@@ -1641,6 +1644,7 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
         },
         stat: args.stat,
         roll_id: rollId,
+        modifier_entitlements: state.listRollModifierEntitlements(campaignState, rollId),
         ...result,
         outcome_text: outcomeTextFor(move, result.outcome),
         momentum_burn: momentumBurn,
@@ -1715,7 +1719,13 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
         outcome: result.outcome,
         isMatch: result.is_match,
       });
-      return { roll_id: rollId, track_id: args.track_id, track_name: track.name, ...result };
+      return {
+        roll_id: rollId,
+        modifier_entitlements: state.listRollModifierEntitlements(campaignState, rollId),
+        track_id: args.track_id,
+        track_name: track.name,
+        ...result,
+      };
     }
     case 'mark_progress_track': {
       try {
@@ -1808,13 +1818,15 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
       const result = state.burnMomentum(campaignState);
       state.markMomentumBurned(campaignState, args.roll_id);
       state.updateRollResolution(campaignState, args.roll_id, currentMomentum, roll.currentChallengeDice, recomputed);
+      if (roll.resolutionStatus === 'open') state.markRollResolved(campaignState, args.roll_id);
       return { ...result, new_outcome: newOutcome };
     }
     case 'reroll_action_die': {
       try {
         if (!args.roll_id) return { die: dice.rollActionDie(), standalone: true };
-        const roll = state.getRoll(campaignState, args.roll_id);
+        const roll = state.requireOpenRoll(campaignState, args.roll_id);
         if (roll.kind !== 'action') return { error: 'reroll_action_die requires an action-roll roll_id.' };
+        state.consumeRollModifierEntitlement(campaignState, args.roll_id, args.entitlement_id, 'reroll_action_die');
         if (args.extra_add === 1 && !campaignState.character.assets.some((asset) => asset.name === 'Looper' && asset.abilities_unlocked.includes(3))) {
           return { error: 'extra_add 1 requires an owned Looper with ability 3 unlocked.' };
         }
@@ -1831,7 +1843,8 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
     }
     case 'roll_extra_challenge_die': {
       try {
-        const roll = state.getRoll(campaignState, args.roll_id);
+        const roll = state.requireOpenRoll(campaignState, args.roll_id);
+        state.consumeRollModifierEntitlement(campaignState, args.roll_id, args.entitlement_id, 'roll_extra_challenge_die');
         const die = dice.rollExtraChallengeDie();
         for (const original of roll.currentChallengeDice) {
           state.authorizeChallengeDice(campaignState, args.roll_id, [original, die]);
@@ -1844,11 +1857,17 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
     }
     case 'roll_bonus_challenge_dice': {
       try {
-        const roll = state.getRoll(campaignState, args.roll_id);
-        const result = dice.rollBonusChallengeDice(roll.currentActionScore, roll.currentChallengeDice, args.extra_die_count || 1);
+        const roll = state.requireOpenRoll(campaignState, args.roll_id);
+        const entitlement = state.consumeRollModifierEntitlement(campaignState, args.roll_id, args.entitlement_id, 'roll_bonus_challenge_dice');
+        const extraDieCount = args.extra_die_count || 1;
+        if (!Number.isInteger(extraDieCount) || extraDieCount < 1 || extraDieCount > entitlement.maxExtraDice) {
+          return { error: `${entitlement.sourceName} ability ${entitlement.abilityNumber} allows 1-${entitlement.maxExtraDice} bonus challenge dice, not ${extraDieCount}.` };
+        }
+        const result = dice.rollBonusChallengeDice(roll.currentActionScore, roll.currentChallengeDice, extraDieCount);
         if (result.forced_match) {
           state.authorizeChallengeDice(campaignState, args.roll_id, result.dice_used);
           state.updateRollResolution(campaignState, args.roll_id, roll.currentActionScore, result.dice_used, result);
+          state.markRollResolved(campaignState, args.roll_id);
         } else {
           for (const pairing of result.possible_pairings) state.authorizeChallengeDice(campaignState, args.roll_id, pairing.dice);
         }
@@ -1859,7 +1878,8 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
     }
     case 'reroll_challenge_dice': {
       try {
-        const roll = state.getRoll(campaignState, args.roll_id);
+        const roll = state.requireOpenRoll(campaignState, args.roll_id);
+        state.consumeRollModifierEntitlement(campaignState, args.roll_id, args.entitlement_id, 'reroll_challenge_dice');
         const challengeDice = dice.rerollChallengeDice();
         state.authorizeChallengeDice(campaignState, args.roll_id, challengeDice);
         const result = dice.determineOutcome(roll.currentActionScore, challengeDice);
@@ -1874,16 +1894,24 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
         return { error: 'challenge_dice must be an array of exactly 2 integers.' };
       }
       try {
-        const roll = state.getRoll(campaignState, args.roll_id);
+        const roll = state.requireOpenRoll(campaignState, args.roll_id);
         let actionScore = args.action_score === undefined ? roll.currentActionScore : args.action_score;
         let burnSpecialMomentum = false;
+        const requestedModifiers = [
+          args.score_mode && args.score_mode !== 'current' ? args.score_mode : null,
+          args.dice_mode && args.dice_mode !== 'current' ? args.dice_mode : null,
+        ].filter(Boolean);
+        if (requestedModifiers.length > 1) return { error: 'Only one entitlement-bound score_mode or dice_mode may be applied in a single resolution.' };
+        if (requestedModifiers.length === 1) {
+          state.consumeRollModifierEntitlement(campaignState, args.roll_id, args.entitlement_id, requestedModifiers[0], args.source_id);
+        }
         if (args.score_mode && args.score_mode !== 'current') {
           const asset = campaignState.character.assets.find((candidate) => candidate.id === args.source_id);
           if (args.score_mode === 'kinetic_plus_2') {
             if (!asset || asset.name !== 'Kinetic' || !asset.abilities_unlocked.includes(2)) return { error: 'kinetic_plus_2 requires the exact id of an owned Kinetic with ability 2 unlocked.' };
             actionScore = Math.min(10, roll.currentActionScore + 2);
           } else if (args.score_mode === 'exosuit_integrity_die') {
-            if (!asset || asset.name !== 'Exosuit' || !asset.abilities_unlocked.includes(2) || roll.kind !== 'action') return { error: 'exosuit_integrity_die requires an action roll and the exact id of an owned Exosuit with ability 2 unlocked.' };
+            if (!asset || asset.name !== 'Exosuit' || !asset.abilities_unlocked.includes(1) || roll.kind !== 'action') return { error: 'exosuit_integrity_die requires an action roll and the exact id of an owned Exosuit with ability 1 unlocked.' };
             actionScore = dice.computeActionScore(campaignState.character.meters.integrity, roll.statValue, roll.adds);
           }
           state.authorizeActionScore(campaignState, args.roll_id, actionScore);
@@ -1915,6 +1943,7 @@ async function executeToolOnWorkingState(name, args, campaignState, imageGen = n
           state.markMomentumBurned(campaignState, args.roll_id);
         }
         state.updateRollResolution(campaignState, args.roll_id, actionScore, args.challenge_dice, recomputed);
+        state.markRollResolved(campaignState, args.roll_id);
         return { roll_id: args.roll_id, action_score: actionScore, challenge_dice: args.challenge_dice, ...recomputed, ...(momentumBurn ? { momentum_burn: momentumBurn } : {}) };
       } catch (error) {
         return { error: error.message };
