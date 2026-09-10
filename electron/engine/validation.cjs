@@ -1,5 +1,7 @@
 'use strict';
 
+const campaignSchema = require('./campaignSchema.cjs');
+
 const CAMPAIGN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
 const IMAGE_ID_RE = /^img-[a-z0-9]+-[a-z0-9]{6}$/;
 const MAX_IPC_BYTES = 2 * 1024 * 1024;
@@ -108,58 +110,27 @@ function assertConfig(config) {
 
 function assertCharacter(character) {
   assertPlainObject(character, 'character');
+  const allowed = new Set(['name', 'callsign', 'pronouns', 'description', 'stats']);
+  for (const key of Object.keys(character)) if (!allowed.has(key)) fail(`character.${key} is not supported during character creation.`);
   assertString(character.name, 'character.name', { max: 200 });
-  for (const field of ['callsign', 'pronouns', 'description']) {
-    if (character[field] !== undefined) assertString(character[field], `character.${field}`, { max: field === 'description' ? 10000 : 200 });
-  }
-  assertPlainObject(character.stats, 'character.stats');
-  for (const stat of ['edge', 'heart', 'iron', 'shadow', 'wits']) {
-    if (!Number.isInteger(character.stats[stat]) || character.stats[stat] < 1 || character.stats[stat] > 3) fail(`character.stats.${stat} must be an integer from 1 to 3.`);
-  }
-  if (character.assets !== undefined) {
-    if (!Array.isArray(character.assets) || character.assets.length > 100) fail('character.assets is invalid.');
-    for (const asset of character.assets) {
-      assertPlainObject(asset, 'character asset');
-      assertString(asset.id, 'character asset id', { min: 1, max: 500 });
-      assertString(asset.name, 'character asset name', { min: 1, max: 200 });
-    }
-  }
-  if (character.meters !== undefined) {
-    assertPlainObject(character.meters, 'character.meters');
-    for (const meter of ['health', 'spirit', 'supply', 'integrity']) {
-      if (!Number.isInteger(character.meters[meter]) || character.meters[meter] < 0 || character.meters[meter] > 5) fail(`character.meters.${meter} is invalid.`);
-    }
-    if (!Number.isInteger(character.meters.momentum) || character.meters.momentum < -6 || character.meters.momentum > 10) fail('character.meters.momentum is invalid.');
+  for (const field of ['callsign', 'pronouns', 'description']) if (character[field] !== undefined) assertString(character[field], `character.${field}`, { max: field === 'description' ? 10000 : 200 });
+  if (character.stats !== undefined) {
+    assertPlainObject(character.stats, 'character.stats');
+    const stats = ['edge', 'heart', 'iron', 'shadow', 'wits'];
+    if (Object.keys(character.stats).length !== stats.length) fail('character.stats must contain all five stats and no other fields.');
+    for (const stat of stats) if (!Number.isInteger(character.stats[stat]) || character.stats[stat] < 1 || character.stats[stat] > 3) fail(`character.stats.${stat} must be an integer from 1 to 3.`);
   }
   return character;
 }
 
-function assertCampaignRecord(record) {
+function assertCampaignRecord(record, options) {
   assertBoundedJson(record, 'campaign import', MAX_IMPORT_BYTES);
-  assertPlainObject(record, 'campaign import');
-  assertPlainObject(record.state, 'campaign state');
-  assertCharacter(record.state.character);
-  for (const field of ['progressTracks', 'connections', 'log', 'illustrations', 'clocks', 'flags', 'campaignElements']) {
-    if (!Array.isArray(record.state[field]) || record.state[field].length > 10000) fail(`campaign state.${field} is invalid.`);
-  }
-  assertPlainObject(record.state.sectors, 'campaign state.sectors');
-  if (!Array.isArray(record.messages) || record.messages.length > MAX_MESSAGES) fail(`campaign messages must contain at most ${MAX_MESSAGES} entries.`);
-  for (const message of record.messages) {
-    assertPlainObject(message, 'message');
-    if (!['system', 'user', 'assistant', 'tool'].includes(message.role)) fail('message role is invalid.');
-    if (message.content != null) assertString(message.content, 'message.content', { max: MAX_MESSAGE_CHARS });
-  }
-  return record;
+  return campaignSchema.normalizeCampaignRecord(record, options);
 }
 
 function assertCharacterExport(value) {
   assertBoundedJson(value, 'character import', MAX_IMPORT_BYTES);
-  assertPlainObject(value, 'character import');
-  if (value.kind !== 'starforged-character-export' || value.version !== 1) fail('unsupported character export format or version.');
-  assertCharacter(value.character);
-  if (value.truths !== undefined) assertPlainObject(value.truths, 'truths');
-  if (value.backgroundVow != null) assertString(value.backgroundVow, 'backgroundVow', { max: 1000 });
-  return value;
+  return campaignSchema.normalizeCharacterExport(value);
 }
 
 function validateIpcPayload(channel, payload) {
@@ -194,7 +165,7 @@ function validateIpcPayload(channel, payload) {
     }
     if (channel === 'campaign:new' && payload.character) assertCharacter(payload.character);
     if (channel === 'campaign:apply_imported_character') {
-      assertCharacterExport({ kind: 'starforged-character-export', version: 1, character: payload.character, truths: payload.truths || {}, backgroundVow: payload.backgroundVow || null });
+      assertCharacterExport({ kind: 'starforged-character-export', version: campaignSchema.CHARACTER_SCHEMA_VERSION, character: payload.character, truths: payload.truths || {}, backgroundVow: payload.backgroundVow || null });
     }
   }
   return payload;
@@ -210,5 +181,7 @@ module.exports = {
   assertConfig,
   assertCampaignRecord,
   assertCharacterExport,
+  CAMPAIGN_SCHEMA_VERSION: campaignSchema.CAMPAIGN_SCHEMA_VERSION,
+  CHARACTER_SCHEMA_VERSION: campaignSchema.CHARACTER_SCHEMA_VERSION,
   validateIpcPayload,
 };

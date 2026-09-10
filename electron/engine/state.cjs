@@ -216,7 +216,7 @@ const LEGACY_TRACKS = [
 /** A fresh, blank character/campaign state. The renderer's character-creation flow fills this in. */
 function newCampaignState() {
   return {
-    version: 1,
+    version: 2,
     character: {
       name: '',
       callsign: '',
@@ -593,6 +593,22 @@ function listRollModifierEntitlements(state, rollId) {
     max_extra_dice: entry.maxExtraDice,
     used: entry.used,
   }));
+}
+
+/** Pure schema-side check for restoring persisted entitlements without trusting their claims. */
+function isValidRollModifierEntitlement(roll, asset, entitlement) {
+  return ROLL_MODIFIER_ABILITIES.some((rule) =>
+    asset &&
+    asset.name === rule.asset &&
+    asset.id === entitlement.sourceId &&
+    entitlement.sourceName === asset.name &&
+    entitlement.abilityNumber === rule.ability &&
+    asset.abilities_unlocked.includes(rule.ability) &&
+    entitlement.modifier === rule.modifier &&
+    entitlement.maxExtraDice === (rule.maxExtraDice || null) &&
+    (!rule.rollKinds || rule.rollKinds.includes(roll.kind)) &&
+    (!rule.moves || rule.moves.includes(roll.moveName))
+  );
 }
 
 function requireOpenRoll(state, rollId) {
@@ -1661,6 +1677,7 @@ module.exports = {
   recordRoll,
   getRoll,
   listRollModifierEntitlements,
+  isValidRollModifierEntitlement,
   consumeRollModifierEntitlement,
   requireOpenRoll,
   markRollResolved,
@@ -1702,6 +1719,7 @@ module.exports = {
   spendExperience,
   ASSET_PURCHASE_COST,
   ASSET_UPGRADE_COST,
+  ASSET_RESOURCES,
   SECTOR_COLS,
   SECTOR_ROWS,
   newSector,

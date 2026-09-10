@@ -84,7 +84,20 @@ async function runTurn({ apiKey, model, messages, campaignState, imageGen = null
       throw new Error(message);
     }
 
-    const assistantMessage = choice.message;
+    // Persist a stable transcript schema instead of provider-specific response metadata. The
+    // import validator can therefore validate every retained field, and exports produced by
+    // this version remain valid regardless of which OpenRouter provider supplied the turn.
+    const assistantMessage = {
+      role: 'assistant',
+      content: choice.message.content ?? null,
+    };
+    if (Array.isArray(choice.message.tool_calls)) {
+      assistantMessage.tool_calls = choice.message.tool_calls.map((call) => ({
+        id: call.id,
+        type: call.type,
+        function: { name: call.function.name, arguments: call.function.arguments },
+      }));
+    }
     working.push(assistantMessage);
 
     const toolCalls = assistantMessage.tool_calls;
