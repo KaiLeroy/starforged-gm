@@ -33,6 +33,7 @@ export interface OwnedAsset {
   health?: number; // present only for Companion-category assets
   battered?: boolean; // present only for Command Vehicle / Support Vehicle assets
   cursed?: boolean; // present only for Command Vehicle assets (support vehicles can't be cursed)
+  broken?: boolean; // present only for Module assets
   resource?: { current: number; max: number; label: string }; // present only for assets with their own tracked resource (Missile Array's ammo, Expanded Hold's cargo, Shields, and others -- see ASSET_RESOURCES in state.cjs)
 }
 
@@ -209,14 +210,36 @@ export interface LogEntry {
 export interface RollLedgerEntry {
   id: string;
   kind: 'action' | 'progress';
-  moveName?: string;
+  moveName: string | null;
+  trackId?: string;
+  stat?: string | null;
+  statValue?: number;
+  valueSource?: string;
+  adds?: number;
+  actionDie?: number | null;
+  momentum?: number;
+  negativeMomentumApplied?: boolean;
+  actionDieMode?: 'normal' | 'preset' | 'zero';
   actionScore?: number;
   progressScore?: number;
   challengeDice: [number, number];
+  outcome: 'strong_hit' | 'weak_hit' | 'miss';
+  isMatch: boolean;
   authorizedActionScores: number[];
   authorizedChallengeDice: [number, number][];
   appliedAssetEffects: Record<string, unknown>;
   momentumBurned: boolean;
+  resolutionStatus: 'open' | 'resolved';
+  modifierEntitlements: Record<string, {
+    id: string;
+    rollId: string;
+    sourceId: string;
+    sourceName: string;
+    abilityNumber: number;
+    modifier: string;
+    maxExtraDice: number | null;
+    used: boolean;
+  }>;
   currentActionScore: number;
   currentChallengeDice: [number, number];
   currentOutcome: 'strong_hit' | 'weak_hit' | 'miss';
@@ -239,6 +262,8 @@ export interface CampaignState {
   // runtime via game.getCampaignElementCategories(), rather than duplicated here as a second,
   // driftable copy.
   campaignElements: { id: string; category: string; name: string; description: string }[];
+  lastPlayedAt: string | null;
+  campaignName: string | null;
   log: LogEntry[];
   storySummary: { recent: string; distant: string };
   rollLedger: { order: string[]; entries: Record<string, RollLedgerEntry> };
@@ -248,8 +273,9 @@ export type ChatRole = 'user' | 'assistant' | 'tool' | 'system';
 
 export interface ChatMessage {
   role: ChatRole;
-  content: string;
-  tool_calls?: unknown;
+  content: string | null;
+  tool_call_id?: string;
+  tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[];
 }
 
 export interface PendingChoiceOption {
@@ -265,6 +291,8 @@ export interface PendingChoice {
 }
 
 export interface CampaignRecord {
+  version: number;
+  revision: number;
   state: CampaignState;
   messages: ChatMessage[];
   pendingChoice: PendingChoice | null;

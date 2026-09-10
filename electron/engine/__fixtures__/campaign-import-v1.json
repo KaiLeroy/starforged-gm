@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "state": {
+    "character": {
+      "name": "Legacy Voyager",
+      "stats": { "edge": 3, "heart": 2, "iron": 2, "shadow": 1, "wits": 1 }
+    },
+    "progressTracks": [
+      { "id": "vow-background", "name": "Find a way home", "type": "vow", "rank": "epic", "ticks": 4 }
+    ],
+    "campaignElements": [
+      { "id": "element-old", "text": "The Silent Armada" }
+    ],
+    "sectors": {
+      "sector-old": {
+        "id": "sector-old",
+        "name": "Old Reach",
+        "region": "Terminus",
+        "factionControl": "",
+        "notes": "",
+        "cells": {
+          "0,0": { "name": "Anchor", "notes": "", "features": [] }
+        },
+        "currentCell": "0,0"
+      }
+    },
+    "currentSectorId": "sector-old"
+  },
+  "messages": [
+    { "role": "user", "content": "Begin.", "provider_metadata": "discard me" },
+    { "role": "assistant", "content": "The old voyage begins.", "reasoning": "discard me" }
+  ]
+}

@@ -26,7 +26,7 @@ export function parseDisplayMessages(messages: ChatMessage[]): DisplayMessage[] 
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      out.push({ role: 'user', content: msg.content, events: [] });
+      out.push({ role: 'user', content: msg.content || '', events: [] });
     } else if (msg.role === 'assistant') {
       const toolCalls = (msg as any).tool_calls as Array<{ function: { name: string; arguments: string } }> | undefined;
       if (toolCalls && toolCalls.length > 0) {
@@ -50,7 +50,7 @@ export function parseDisplayMessages(messages: ChatMessage[]): DisplayMessage[] 
       const next = openCalls.shift();
       if (next) {
         try {
-          next.result = JSON.parse(msg.content);
+          next.result = JSON.parse(msg.content || '');
         } catch {
           next.result = { raw: msg.content };
         }

@@ -83,48 +83,6 @@ function readBoundedJsonFile(filePath, label) {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-function normalizeImportedCharacter(imported) {
-  const defaults = stateMod.newCampaignState().character;
-  const character = {
-    ...defaults,
-    ...cloneJson(imported),
-    stats: { ...defaults.stats, ...(imported.stats || {}) },
-    meters: { ...defaults.meters, ...(imported.meters || {}) },
-    experience: { ...defaults.experience, ...(imported.experience || {}) },
-    impacts: { ...defaults.impacts, ...(imported.impacts || {}) },
-    assets: Array.isArray(imported.assets) ? cloneJson(imported.assets) : [],
-  };
-  for (const asset of character.assets) {
-    const official = dataMod.findAsset(asset.id);
-    if (!official) throw new Error(`Character import contains an unknown asset id: ${asset.id}`);
-    asset.name = official.Name;
-    asset.category = (official['Asset Type'] || '').split('/').pop();
-    asset.abilities_unlocked = [...new Set(asset.abilities_unlocked || [1])].filter((n) => Number.isInteger(n) && n >= 1 && n <= 3);
-    if (asset.abilities_unlocked.length === 0) asset.abilities_unlocked = [1];
-  }
-  return character;
-}
-
-function normalizeImportedCampaign(parsed) {
-  if (parsed.version !== undefined && parsed.version !== 1) throw new Error(`Unsupported campaign save version: ${parsed.version}`);
-  const defaults = stateMod.newCampaignState();
-  const incoming = cloneJson(parsed.state);
-  const normalized = {
-    version: 1,
-    revision: 0,
-    state: {
-      ...defaults,
-      ...incoming,
-      character: normalizeImportedCharacter(incoming.character),
-      storySummary: { ...defaults.storySummary, ...(incoming.storySummary || {}) },
-    },
-    messages: Array.isArray(parsed.messages) ? cloneJson(parsed.messages) : [],
-    pendingChoice: parsed.pendingChoice ? cloneJson(parsed.pendingChoice) : null,
-  };
-  stateMod.applyImpactEffects(normalized.state);
-  return normalized;
-}
-
 /** Builds the `{baseUrl, workflowTemplate, saveImage}` shape tools.cjs's generate_image expects,
  *  or null if ComfyUI isn't configured -- generate_image reports that cleanly rather than throwing. */
 function buildImageGen(onImageSaved = () => {}, signal) {
@@ -237,92 +195,11 @@ function loadCampaign(campaignId) {
   if (fs.existsSync(file)) {
     record = store.loadCampaignRecord(userDataDir(), campaignId).record;
   } else {
-    record = { version: 1, revision: 0, state: stateMod.newCampaignState(), messages: [], pendingChoice: null };
+    const state = stateMod.newCampaignState();
+    state.version = validation.CAMPAIGN_SCHEMA_VERSION;
+    record = { version: validation.CAMPAIGN_SCHEMA_VERSION, revision: 0, state, messages: [], pendingChoice: null };
   }
-  // Backward compatibility: sectors saved before passages existed won't have the field at all.
-  // Normalized here, once, at load time -- this is the single most central point every other
-  // code path (including campaign:get, which returns the raw record with no other processing)
-  // passes through, rather than defensively re-checking for it in the renderer or in every
-  // individual tool handler.
-  if (record.state && record.state.sectors) {
-    for (const sector of Object.values(record.state.sectors)) {
-      if (!sector.passages) sector.passages = [];
-    }
-  }
-  // Backward compatibility: campaigns saved before campaignElements existed won't have the
-  // field at all -- same normalization pattern as sector.passages above.
-  if (record.state && !record.state.campaignElements) {
-    record.state.campaignElements = [];
-  }
-  // Backward compatibility: campaignElements upgraded from a single freeform string ({id, text})
-  // into a real, categorized shape ({id, category, name, description}) -- an old entry has no
-  // way to know which category it actually belongs in (that information was never captured),
-  // so it goes to 'Other' rather than guessing, with its old text becoming the new name. The
-  // player can freely re-add it under a better category later if they want; this only needs to
-  // not crash the UI or the tool handlers that now expect the new shape.
-  if (record.state && record.state.campaignElements) {
-    for (const el of record.state.campaignElements) {
-      if (!('category' in el)) {
-        el.category = 'Other';
-        el.name = el.text;
-        el.description = '';
-        delete el.text;
-      }
-    }
-  }
-  // Backward compatibility: campaigns saved before present_choice/pendingChoice existed won't
-  // have the field at all -- default to null (no choice pending), same pattern as above. Note
-  // this lives on `record` itself, not `record.state` -- it's about the conversation/turn
-  // mechanics, not game state.
-  if (!('pendingChoice' in record)) {
-    record.pendingChoice = null;
-  }
-  if (!Number.isInteger(record.revision) || record.revision < 0) record.revision = 0;
-  if (!Number.isInteger(record.version)) record.version = 1;
-  if (record.state && !record.state.rollLedger) {
-    record.state.rollLedger = { order: [], entries: {} };
-  }
-  // Backward compatibility: campaigns saved before Vehicle Troubles moved onto individual
-  // vehicle assets. Two things to migrate, once, here: (1) any existing Command/Support Vehicle
-  // assets that predate this change won't have battered/cursed fields at all -- add them,
-  // false by default, so setVehicleCondition and the momentum calculation don't choke on a
-  // missing field. Support vehicles only ever get battered (never cursed), matching addAsset's
-  // own rule for newly-created ones. (2) the actual OLD data: a single shared
-  // character.impacts['Current Vehicle'] (now removed from DEFAULT_IMPACTS entirely) and a
-  // boolean character.aboardVehicle (now an asset id or null) -- migrate whatever was marked
-  // onto the character's command vehicle specifically, since that's what the old shared toggle
-  // most often represented in practice, then delete the old fields so they don't linger as dead
-  // data alongside the new ones.
-  if (record.state && record.state.character) {
-    const character = record.state.character;
-    if (character.assets) {
-      for (const asset of character.assets) {
-        if (asset.category === 'Command Vehicle') {
-          if (!('battered' in asset)) asset.battered = false;
-          if (!('cursed' in asset)) asset.cursed = false;
-        } else if (asset.category === 'Support Vehicle' && !('battered' in asset)) {
-          asset.battered = false;
-        }
-      }
-    }
-    if (character.impacts && character.impacts['Current Vehicle']) {
-      const old = character.impacts['Current Vehicle'];
-      const wasBattered = old.some((i) => i.name === 'Battered' && i.marked);
-      const wasCursed = old.some((i) => i.name === 'Cursed' && i.marked);
-      const commandVehicle = (character.assets || []).find((a) => a.category === 'Command Vehicle');
-      if (commandVehicle && (wasBattered || wasCursed)) {
-        if (wasBattered) commandVehicle.battered = true;
-        if (wasCursed) commandVehicle.cursed = true;
-      }
-      delete character.impacts['Current Vehicle'];
-    }
-    if ('aboardVehicle' in character) {
-      const commandVehicle = (character.assets || []).find((a) => a.category === 'Command Vehicle');
-      character.aboardVehicleId = character.aboardVehicle && commandVehicle ? commandVehicle.id : null;
-      delete character.aboardVehicle;
-    }
-    if (character.assets) stateMod.applyImpactEffects(record.state);
-  }
+  record = validation.assertCampaignRecord(record);
   campaigns.set(campaignId, record);
   return record;
 }
@@ -511,7 +388,7 @@ ipcMain.handle('campaign:duplicate', (_evt, { campaignId }) => {
   // include its own unresolved tool_calls message (see below), so the duplicate needs to know
   // about the pending choice as well, or its own UI would have no way to show the picker for a
   // conversation state it already has.
-  const record = { state: clonedState, messages: clonedMessages, pendingChoice: original.pendingChoice ? JSON.parse(JSON.stringify(original.pendingChoice)) : null };
+  const record = { version: validation.CAMPAIGN_SCHEMA_VERSION, revision: 0, state: clonedState, messages: clonedMessages, pendingChoice: original.pendingChoice ? JSON.parse(JSON.stringify(original.pendingChoice)) : null };
   campaigns.set(newId, record);
   saveCampaign(newId);
   return { campaignId: newId };
@@ -602,8 +479,7 @@ ipcMain.handle('campaign:import', async () => {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !parsed.state || !parsed.state.character) {
     throw new Error('That file doesn\'t look like a campaign export (missing character state).');
   }
-  const record = normalizeImportedCampaign(parsed);
-  validation.assertCampaignRecord(record);
+  const record = validation.assertCampaignRecord(parsed, { resetRevision: true });
   const newId = `campaign-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   campaigns.set(newId, record);
   saveCampaign(newId);
@@ -629,7 +505,7 @@ ipcMain.handle('character:export', async (_evt, { campaignId }) => {
   const backgroundVowTrack = record.state.progressTracks.find((t) => t.id === 'vow-background');
   const exportData = {
     kind: 'starforged-character-export',
-    version: 1,
+    version: validation.CHARACTER_SCHEMA_VERSION,
     character: record.state.character,
     truths: record.state.truths,
     backgroundVow: backgroundVowTrack ? backgroundVowTrack.name : null,
@@ -657,7 +533,7 @@ ipcMain.handle('character:import', async () => {
     if (error.message.includes('20 MB safety limit')) throw error;
     throw new Error('That file isn\'t valid JSON -- it doesn\'t look like a character export.');
   }
-  validation.assertCharacterExport(parsed);
+  parsed = validation.assertCharacterExport(parsed);
   return {
     canceled: false,
     character: parsed.character,
@@ -672,12 +548,12 @@ ipcMain.handle('character:import', async () => {
 // free Starship or anything else campaign:new normally adds -- the imported character is already
 // complete exactly as it was exported, so nothing should be layered on top of it.
 ipcMain.handle('campaign:apply_imported_character', (_evt, { campaignId, character, truths, backgroundVow }) => {
-  validation.assertCharacterExport({ kind: 'starforged-character-export', version: 1, character, truths: truths || {}, backgroundVow: backgroundVow || null });
+  const imported = validation.assertCharacterExport({ kind: 'starforged-character-export', version: validation.CHARACTER_SCHEMA_VERSION, character, truths: truths || {}, backgroundVow: backgroundVow || null });
   campaignId = campaignId || `campaign-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const record = loadCampaign(campaignId);
   const state = record.state;
-  state.character = normalizeImportedCharacter(character);
-  state.truths = truths || {};
+  state.character = imported.character;
+  state.truths = imported.truths;
   stateMod.applyImpactEffects(state);
   if (backgroundVow && backgroundVow.trim() && !state.progressTracks.some((t) => t.id === 'vow-background')) {
     state.progressTracks.push({ id: 'vow-background', name: backgroundVow.trim(), type: 'vow', rank: 'epic', ticks: 0 });
