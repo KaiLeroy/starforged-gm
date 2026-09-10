@@ -4,6 +4,28 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function replaceJsonObject(target, source) {
+  for (const key of Object.keys(target)) delete target[key];
+  Object.assign(target, source);
+  return target;
+}
+
+function isErrorResult(value) {
+  return Boolean(value && typeof value === 'object' && typeof value.error === 'string');
+}
+
+/**
+ * Runs one state operation against an isolated copy and commits it back into the existing root
+ * object only on success. Both thrown failures and the engine's conventional `{ error }` results
+ * therefore leave the caller's state byte-for-byte unchanged.
+ */
+async function runStateTransaction(targetState, operation, { isError = isErrorResult } = {}) {
+  const workingState = cloneJson(targetState);
+  const value = await operation(workingState);
+  if (!isError(value)) replaceJsonObject(targetState, workingState);
+  return value;
+}
+
 /**
  * Runs a campaign operation against an isolated copy. The caller receives the copy only after the
  * operation succeeds, so a thrown provider/tool error cannot leak partial mutations into the
@@ -33,4 +55,11 @@ function createCampaignMutationQueue() {
   };
 }
 
-module.exports = { cloneJson, runCampaignTransaction, createCampaignMutationQueue };
+module.exports = {
+  cloneJson,
+  replaceJsonObject,
+  isErrorResult,
+  runStateTransaction,
+  runCampaignTransaction,
+  createCampaignMutationQueue,
+};

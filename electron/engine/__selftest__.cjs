@@ -373,6 +373,36 @@ await check('campaign transactions discard partial mutations on failure and the 
   await Promise.all([first, second]);
   assert.deepStrictEqual(order, ['first-start', 'first-end', 'second']);
 });
+await check('state transactions preserve root identity on commit and exact state on every error form', async () => {
+  const committed = { nested: { value: 1 }, obsolete: true };
+  const root = committed;
+  const success = await transaction.runStateTransaction(committed, async (working) => {
+    working.nested.value = 2;
+    delete working.obsolete;
+    working.added = ['committed'];
+    return { ok: true };
+  });
+  assert.deepStrictEqual(success, { ok: true });
+  assert.strictEqual(committed, root, 'successful commits must preserve the live root object identity');
+  assert.deepStrictEqual(committed, { nested: { value: 2 }, added: ['committed'] });
+
+  for (const failure of ['returned', 'thrown']) {
+    const before = JSON.stringify(committed);
+    const operation = async (working) => {
+      working.nested.value = 99;
+      working.added.push('must roll back');
+      if (failure === 'returned') return { error: 'rejected after mutation' };
+      throw new Error('thrown after mutation');
+    };
+    if (failure === 'returned') {
+      assert.deepStrictEqual(await transaction.runStateTransaction(committed, operation), { error: 'rejected after mutation' });
+    } else {
+      await assert.rejects(() => transaction.runStateTransaction(committed, operation), /thrown after mutation/);
+    }
+    assert.strictEqual(JSON.stringify(committed), before, `${failure} errors must leave serialized state identical`);
+    assert.strictEqual(committed, root, `${failure} errors must preserve the live root object identity`);
+  }
+});
 await check('atomic campaign saves retain a valid backup and automatically recover a corrupt primary', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-atomic-store-test-'));
   try {
@@ -850,14 +880,13 @@ await check('the full Forge a Bond tool chain works end to end, including the po
   const cs = state.newCampaignState();
   const c = await executeTool('add_connection', { name: 'Rin', notes: '' }, cs);
   await executeTool('set_connection_rank', { connection_id: c.id, rank: 'formidable' }, cs);
-  const conn = cs.connections.find((x) => x.id === c.id);
-  conn.progressTicks = 40; // guarantee a strong hit for the test
+  cs.connections.find((x) => x.id === c.id).progressTicks = 40; // guarantee a strong hit for the test
   const roll = await executeTool('roll_connection_progress', { connection_id: c.id }, cs);
   assert.ok(!roll.error, roll.error);
   const reward = await executeTool('apply_bond_reward', { connection_id: c.id }, cs);
   assert.ok(!reward.error, reward.error);
   assert.strictEqual(reward.ticksAwarded, 4); // formidable
-  assert.strictEqual(conn.bonded, true);
+  assert.strictEqual(cs.connections.find((x) => x.id === c.id).bonded, true);
 
   const fixedReward = await executeTool('mark_legacy_ticks', { track_id: 'legacy-bonds', ticks: 2 }, cs);
   assert.ok(!fixedReward.error, fixedReward.error);
@@ -2377,6 +2406,46 @@ await check('reveal_location tool reports a clean error on an out-of-range cell'
 });
 
 console.log('Tool dispatcher');
+await check('every declared tool preserves serialized campaign state whenever it returns or throws an error', async () => {
+  for (const tool of TOOL_SCHEMAS) {
+    const cs = state.newCampaignState();
+    const before = JSON.stringify(cs);
+    try {
+      const result = await executeTool(tool.function.name, {}, cs);
+      if (result && result.error) {
+        assert.strictEqual(JSON.stringify(cs), before, `${tool.function.name} mutated state before returning an error`);
+      }
+    } catch (_error) {
+      assert.strictEqual(JSON.stringify(cs), before, `${tool.function.name} mutated state before throwing`);
+    }
+  }
+});
+await check('a real tool failure after an earlier mutation rolls the entire tool state back', async () => {
+  const cs = state.newCampaignState();
+  cs.character.name = 'Test';
+  state.addAsset(cs, { id: 'naturalist-1', name: 'Naturalist', category: 'Path' });
+  const rollId = state.recordRoll(cs, {
+    kind: 'action',
+    moveName: 'Secure an Advantage',
+    actionScore: 8,
+    challengeDice: [2, 2],
+    outcome: 'strong_hit',
+    isMatch: true,
+  });
+  cs.progressTracks = cs.progressTracks.filter((track) => track.id !== 'legacy-discoveries');
+  const before = JSON.stringify(cs);
+  await assert.rejects(
+    () => executeTool('check_asset_bonuses', {
+      move_name: 'Secure an Advantage',
+      roll_id: rollId,
+      outcome: 'strong_hit',
+      is_match: true,
+    }, cs),
+    /No progress track with id "legacy-discoveries"/
+  );
+  assert.strictEqual(JSON.stringify(cs), before, 'Naturalist momentum must roll back when its later legacy update fails');
+  assert.strictEqual(cs.character.meters.momentum, 2);
+});
 await check('every declared tool executes without throwing', async () => {
   const cs = state.newCampaignState();
   cs.progressTracks.push({ id: 'vow-1', name: 'Vow', type: 'vow', rank: 'formidable', ticks: 4 });
